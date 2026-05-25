@@ -23,16 +23,32 @@ export default function RegistrosScreen() {
             <Text style={styles.emptyText}>Tus jornadas aparecerán aquí cuando guardes un registro.</Text>
           </View>
         ) : (
-          registros.map((registro) => (
-            <View key={registro.id} style={styles.recordCard}>
-              <View style={styles.recordHeader}>
-                <Text style={styles.recordTitle}>{registro.titulo}</Text>
-                <Text style={styles.recordDuration}>{registro.duracion}</Text>
+          registros.map((registro) => {
+            const dietaLabel = registro.dieta === 'media' ? '½ Dieta' : registro.dieta === 'completa' ? 'Dieta completa' : null;
+            const extras = registro.horasExtras && registro.horasExtras > 0 ? `${registro.horasExtras}h extra` : null;
+            const tags = [dietaLabel, registro.pernocta ? 'Pernocta' : null, extras].filter(Boolean);
+            return (
+              <View key={registro.id} style={styles.recordCard}>
+                <View style={styles.recordHeader}>
+                  <Text style={styles.recordTitle}>{registro.titulo}</Text>
+                  <Text style={styles.recordDuration}>{registro.duracion}</Text>
+                </View>
+                <Text style={styles.recordSubtitle}>{`${registro.inicio} — ${registro.fin}`}</Text>
+                {tags.length > 0 && (
+                  <View style={styles.tagRow}>
+                    {tags.map((tag) => (
+                      <View key={tag} style={styles.tag}>
+                        <Text style={styles.tagText}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {registro.descripcion ? (
+                  <Text style={styles.recordDescription}>{registro.descripcion}</Text>
+                ) : null}
               </View>
-              <Text style={styles.recordSubtitle}>{`${registro.inicio} - ${registro.fin}`}</Text>
-              <Text style={styles.recordDescription}>{registro.descripcion || 'Sin descripción adicional.'}</Text>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
     </SafeAreaView>
@@ -130,9 +146,26 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   recordDescription: {
-    marginTop: 10,
+    marginTop: 6,
     fontSize: 15,
-    color: Colors.brandDark,
+    color: '#4b5563',
     lineHeight: 22,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  tag: {
+    backgroundColor: `${Colors.brand}18`,
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  tagText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.brand,
   },
 });

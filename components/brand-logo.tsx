@@ -1,5 +1,6 @@
+import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Colors } from '@/constants/theme';
@@ -10,7 +11,7 @@ const brandLogo = require('../assets/images/salvagnini-logo.webp');
 export function BrandLogo() {
   const router = useRouter();
   const [menuVisible, setMenuVisible] = useState(false);
-  const [logoLoaded, setLogoLoaded] = useState(true);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   const handleNavigate = (path: '/' | '/nuevo' | '/registros' | '/ajustes') => {
     setMenuVisible(false);
@@ -20,16 +21,17 @@ export function BrandLogo() {
   return (
     <View style={styles.container}>
       <Pressable style={styles.iconButton} onPress={() => setMenuVisible((prev) => !prev)}>
-        <Image source={brandMark} style={styles.icon} resizeMode="contain" />
+        <Image source={brandMark} style={styles.icon} contentFit="contain" />
       </Pressable>
 
       <View style={styles.textGroup}>
-        {logoLoaded ? (
+        {!logoFailed ? (
           <Image
             source={brandLogo}
             style={styles.logoImage}
-            resizeMode="contain"
-            onError={() => setLogoLoaded(false)}
+            contentFit="contain"
+            contentPosition="left"
+            onError={() => setLogoFailed(true)}
           />
         ) : (
           <Text style={styles.brandName}>SALVAGNINI</Text>
@@ -80,18 +82,17 @@ const styles = StyleSheet.create({
   },
   textGroup: {
     flex: 1,
+    gap: 2,
   },
   logoImage: {
-    width: 210,
-    height: 40,
-    marginBottom: 4,
+    width: '100%',
+    height: 56,
   },
   brandName: {
     fontSize: 28,
     fontWeight: '800',
     color: Colors.brandDark,
     letterSpacing: 2,
-    marginBottom: 4,
   },
   brandTag: {
     fontSize: 13,

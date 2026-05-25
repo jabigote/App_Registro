@@ -32,12 +32,6 @@ export default function HomeScreen() {
           <Pressable style={styles.buttonPrimary} onPress={() => router.push('/nuevo')}>
             <Text style={styles.buttonPrimaryText}>Nuevo registro</Text>
           </Pressable>
-          <Pressable style={styles.buttonSecondary} onPress={() => router.push('/registros')}>
-            <Text style={styles.buttonSecondaryText}>Ver registros</Text>
-          </Pressable>
-          <Pressable style={styles.buttonSecondary} onPress={() => router.push('/ajustes')}>
-            <Text style={styles.buttonSecondaryText}>Ajustes</Text>
-          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -113,19 +107,6 @@ const styles = StyleSheet.create({
   },
   buttonPrimaryText: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  buttonSecondary: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  buttonSecondaryText: {
-    color: Colors.brandDark,
     fontSize: 16,
     fontWeight: '700',
   },

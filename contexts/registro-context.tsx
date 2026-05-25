@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
+export type Dieta = 'ninguna' | 'media' | 'completa';
+
 export type Registro = {
   id: string;
   titulo: string;
@@ -8,6 +10,9 @@ export type Registro = {
   inicio: string;
   fin: string;
   duracion: string;
+  dieta?: Dieta;
+  pernocta?: boolean;
+  horasExtras?: number;
   createdAt: string;
 };
 
