@@ -6,8 +6,11 @@ export type Dieta = 'ninguna' | 'media' | 'completa';
 export type Registro = {
   id: string;
   titulo: string;
+  cliente?: string;
   descripcion: string;
   inicio: string;
+  fin1?: string;
+  inicio2?: string;
   fin: string;
   duracion: string;
   dieta?: Dieta;
@@ -20,6 +23,8 @@ type RegistroContextValue = {
   registros: Registro[];
   loading: boolean;
   addRegistro: (registro: Omit<Registro, 'id' | 'createdAt'>) => Promise<void>;
+  updateRegistro: (id: string, data: Partial<Omit<Registro, 'id' | 'createdAt'>>) => Promise<void>;
+  deleteRegistro: (id: string) => Promise<void>;
 };
 
 const STORAGE_KEY = '@salvagnini_registros';
@@ -83,8 +88,32 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateRegistro = async (id: string, data: Partial<Omit<Registro, 'id' | 'createdAt'>>) => {
+    const updated = registrosRef.current.map((r) => (r.id === id ? { ...r, ...data } : r));
+    registrosRef.current = updated;
+    setRegistros(updated);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (error) {
+      console.warn('Error actualizando registro', error);
+    }
+  };
+
+  const deleteRegistro = async (id: string) => {
+    const updated = registrosRef.current.filter((r) => r.id !== id);
+    registrosRef.current = updated;
+    setRegistros(updated);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (error) {
+      console.warn('Error eliminando registro', error);
+    }
+  };
+
   return (
-    <RegistroContext.Provider value={{ registros, loading, addRegistro }}>{children}</RegistroContext.Provider>
+    <RegistroContext.Provider value={{ registros, loading, addRegistro, updateRegistro, deleteRegistro }}>
+      {children}
+    </RegistroContext.Provider>
   );
 }
 

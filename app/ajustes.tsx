@@ -62,6 +62,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     zIndex: 10,
     elevation: 6,
+    backgroundColor: Colors.light.background,
   },
   page: {
     padding: 24,

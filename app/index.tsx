@@ -10,6 +10,7 @@ export default function HomeScreen() {
   const { registros, loading } = useRegistro();
   const total = registros.length;
   const latest = registros[0];
+  const recientes = registros.slice(0, 3);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -23,9 +24,19 @@ export default function HomeScreen() {
         <View style={styles.stateCard}>
           <Text style={styles.stateLabel}>Jornadas</Text>
           <Text style={styles.stateValue}>
-            {loading ? 'Cargando...' : total === 0 ? 'Sin jornadas registradas' : `${total} jornada${total === 1 ? '' : 's'} guardada${total === 1 ? '' : 's'}`}
+            {loading
+              ? 'Cargando...'
+              : total === 0
+              ? 'Sin jornadas registradas'
+              : `${total} jornada${total === 1 ? '' : 's'} guardada${total === 1 ? '' : 's'}`}
           </Text>
-          {latest ? <Text style={styles.stateNote}>{`${latest.titulo} · ${latest.inicio}-${latest.fin} · ${latest.duracion}`}</Text> : <Text style={styles.stateNote}>Comienza a guardar tus jornadas de trabajo para tener un histórico personal.</Text>}
+          {latest ? (
+            <Text style={styles.stateNote}>{`${latest.titulo} · ${latest.inicio}–${latest.fin} · ${latest.duracion}`}</Text>
+          ) : (
+            <Text style={styles.stateNote}>
+              Comienza a guardar tus jornadas de trabajo para tener un histórico personal.
+            </Text>
+          )}
         </View>
 
         <View style={styles.actions}>
@@ -33,6 +44,28 @@ export default function HomeScreen() {
             <Text style={styles.buttonPrimaryText}>Nuevo registro</Text>
           </Pressable>
         </View>
+
+        {!loading && recientes.length > 0 && (
+          <View style={styles.recentSection}>
+            <Text style={styles.recentTitle}>Últimas jornadas</Text>
+            {recientes.map((r) => (
+              <Pressable
+                key={r.id}
+                style={({ pressed }) => [styles.recentCard, pressed && styles.recentCardPressed]}
+                onPress={() => router.push({ pathname: '/registro-detalle', params: { id: r.id } })}
+              >
+                <View style={styles.recentCardLeft}>
+                  <Text style={styles.recentCardTitulo} numberOfLines={1}>{r.titulo}</Text>
+                  {r.cliente
+                    ? <Text style={styles.recentCardMeta} numberOfLines={1}>{r.cliente}</Text>
+                    : null}
+                  <Text style={styles.recentCardMeta}>{`${r.inicio} — ${r.fin}`}</Text>
+                </View>
+                <Text style={styles.recentCardDuracion}>{r.duracion}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -49,6 +82,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     zIndex: 10,
     elevation: 6,
+    backgroundColor: Colors.light.background,
   },
   page: {
     padding: 24,
@@ -109,5 +143,44 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  recentSection: {
+    gap: 10,
+  },
+  recentTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.brandDark,
+    marginBottom: 2,
+  },
+  recentCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  recentCardPressed: { opacity: 0.7 },
+  recentCardLeft: { flex: 1, marginRight: 12 },
+  recentCardTitulo: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.brandDark,
+  },
+  recentCardMeta: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 3,
+  },
+  recentCardDuracion: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.brand,
   },
 });
