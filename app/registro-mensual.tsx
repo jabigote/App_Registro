@@ -1,13 +1,11 @@
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import * as XLSX from 'xlsx';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { type Registro, useRegistro } from '@/contexts/registro-context';
+import { shareMonthlyReportExcel } from '@/src/services/excel/generateMonthlyReport';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -65,109 +63,35 @@ export default function RegistroMensualScreen() {
 
   const handleExportar = async () => {
     try {
-      const wb = XLSX.utils.book_new();
+      // Construir el mapa de días a partir de los registros del mes
+      const days: Record<number, import('@/src/services/excel/generateMonthlyReport').DayData> = {};
 
-      // ── Cabecera ──
-      const rows: (string | number | undefined)[][] = [
-        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-        ['', 'REPORTE MENSUAL DE HORAS'],
-        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-        ['', 'Mes y Año:', '', '', `${MESES[month]} ${year}`, '', '', '', '', 'Técnico:', '', usuario?.nombre ?? ''],
-        ['', 'Empresa:', '', '', 'Salvagnini Ibérica S.L.'],
-        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-        // Cabecera de columnas (filas 8-10)
-        [
-          '', 'Día',
-          'H. Vac./Perm.',
-          'Recuperación',
-          'H. N. Oficina',
-          'H. N. Exterior',
-          'H. Extras +25%', 'H. Extras +30%', 'H. Extras +50%',
-          'Total Horas',
-          '½ Dieta', 'Dieta Comp.',
-          '½ Dieta (val)', '1 Dieta (val)',
-          'Pernocta',
-          'Actividad / Notas',
-        ],
-      ];
+      for (const reg of registrosDelMes) {
+        const day = getDayFromRegistro(reg);
+        const h = durationToHours(reg.duracion);
+        const esCasa = reg.titulo === 'Casa';
+        const esTele = reg.titulo === 'Teletrabajo';
+        const esExt = reg.titulo === 'Cliente' || reg.titulo === 'Mixto';
+        const nota = [reg.cliente, reg.descripcion].filter(Boolean).join(' – ');
 
-      // ── Filas de días ──
-      for (let day = 1; day <= daysInMonth; day++) {
-        const reg = registrosDelMes.find((r) => getDayFromRegistro(r) === day);
-        if (reg) {
-          const h = durationToHours(reg.duracion);
-          const esCasa = reg.titulo === 'Casa';
-          const esTele = reg.titulo === 'Teletrabajo';
-          const esExt = reg.titulo === 'Cliente' || reg.titulo === 'Mixto';
-          const nota = [reg.cliente, reg.descripcion].filter(Boolean).join(' – ');
-
-          rows.push([
-            '', day, '',
-            esCasa ? h : undefined,
-            esTele ? h : undefined,
-            esExt ? h : undefined,
-            reg.horasExtras && reg.horasExtras > 0 ? reg.horasExtras : undefined,
-            undefined,
-            undefined,
-            h,
-            reg.dieta === 'media' ? 1 : undefined,
-            reg.dieta === 'completa' ? 1 : undefined,
-            reg.dieta === 'media' ? 0.5 : undefined,
-            reg.dieta === 'completa' ? 1 : undefined,
-            reg.pernocta ? 1 : undefined,
-            nota || undefined,
-          ]);
-        } else {
-          rows.push(['', day]);
-        }
+        days[day] = {
+          recuperacion:  esCasa ? h : undefined,
+          horasOficina:  esTele ? h : undefined,
+          horasExterior: esExt  ? h : undefined,
+          extrasP25: reg.horasExtras && reg.horasExtras > 0 ? reg.horasExtras : undefined,
+          totalHoras: h,
+          mediaDieta:    reg.dieta === 'media'    ? 0.5 : undefined,
+          dietaCompleta: reg.dieta === 'completa' ? 1   : undefined,
+          pernocta: reg.pernocta ? 1 : undefined,
+          notas: nota || undefined,
+        };
       }
 
-      // ── Fila de totales ──
-      const totalDecimalHours = registrosDelMes.reduce((sum, r) => sum + durationToHours(r.duracion), 0);
-      const nMedia = registrosDelMes.filter((r) => r.dieta === 'media').length;
-      const nCompleta = registrosDelMes.filter((r) => r.dieta === 'completa').length;
-
-      rows.push(['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-      rows.push([
-        '', 'TOTALES',
-        undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-        Math.round(totalDecimalHours * 10) / 10,
-        nMedia, nCompleta,
-        Math.round(nMedia * 0.5 * 10) / 10,
-        nCompleta,
-        totalPernoctas,
-        '',
-      ]);
-
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-
-      // Anchura de columnas
-      ws['!cols'] = [
-        { wch: 2 }, { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 16 },
-        { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
-        { wch: 10 }, { wch: 12 }, { wch: 13 }, { wch: 13 }, { wch: 10 }, { wch: 30 },
-      ];
-
-      XLSX.utils.book_append_sheet(wb, ws, 'Description Report');
-
-      const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-      const fileName = `Reporte_${year}_${String(month + 1).padStart(2, '0')}_${(usuario?.nombre ?? 'Jornada').replace(/\s/g, '_')}.xlsx`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-
-      await FileSystem.writeAsStringAsync(fileUri, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      const canShare = await Sharing.isAvailableAsync();
-      if (!canShare) {
-        Alert.alert('No disponible', 'La opción de compartir no está disponible en este dispositivo.');
-        return;
-      }
-
-      await Sharing.shareAsync(fileUri, {
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        dialogTitle: `Reporte ${MESES[month]} ${year}`,
-        UTI: 'com.microsoft.excel.xlsx',
+      await shareMonthlyReportExcel({
+        year,
+        month: month + 1,         // month en el servicio es 1-12; aquí month es 0-indexed
+        employeeName: usuario?.nombre ?? 'Empleado',
+        days,
       });
     } catch (e) {
       Alert.alert('Error', 'No se pudo generar el reporte. Inténtalo de nuevo.');
