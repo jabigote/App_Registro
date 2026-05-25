@@ -60,7 +60,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
     position: 'relative',
-    marginBottom: 14,
   },
   iconButton: {
     width: 52,
@@ -83,12 +82,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   logoImage: {
-    width: 180,
-    height: 28,
+    width: 210,
+    height: 40,
     marginBottom: 4,
   },
   brandName: {
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: '800',
     color: Colors.brandDark,
     letterSpacing: 2,

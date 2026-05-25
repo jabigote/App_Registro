@@ -55,8 +55,10 @@ export default function NuevoRegistroScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
         <BrandLogo />
+      </View>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Registro de jornada</Text>
         <Text style={styles.subtitle}>Captura inicio, fin y una breve descripción de tu jornada.</Text>
 
@@ -123,8 +125,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.background,
   },
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 4,
+    zIndex: 10,
+    elevation: 6,
+  },
   page: {
     padding: 24,
+    paddingTop: 16,
     gap: 18,
   },
   title: {

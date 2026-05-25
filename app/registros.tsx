@@ -9,8 +9,10 @@ export default function RegistrosScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
         <BrandLogo />
+      </View>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Registros</Text>
         <Text style={styles.subtitle}>Visualiza todas tus jornadas de trabajo en un solo lugar.</Text>
         {loading ? (
@@ -42,8 +44,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.background,
   },
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 4,
+    zIndex: 10,
+    elevation: 6,
+  },
   page: {
     padding: 24,
+    paddingTop: 16,
     gap: 18,
   },
   title: {
