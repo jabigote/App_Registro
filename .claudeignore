@@ -1,0 +1,84 @@
+# ── Dependencias y paquetes ───────────────────────────────────────────────
+node_modules/
+.pnpm-store/
+vendor/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# ── Build y compilación ───────────────────────────────────────────────────
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+*.min.js
+*.min.css
+*.map
+
+# ── Control de versiones ──────────────────────────────────────────────────
+.git/
+
+# ── Archivos de bloqueo (grandes y sin utilidad para el agente) ───────────
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+Pipfile.lock
+poetry.lock
+composer.lock
+
+# ── Logs y bases de datos ─────────────────────────────────────────────────
+*.log
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Secretos y credenciales (SIEMPRE ignorar) ────────────────────────────
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.cert
+credentials/
+secrets/
+
+# ── Archivos multimedia y binarios ────────────────────────────────────────
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.mp4
+*.mp3
+*.pdf
+*.zip
+*.tar.gz
+*.woff
+*.woff2
+*.ttf
+*.eot
+
+# ── Caché y datos temporales ──────────────────────────────────────────────
+.cache/
+tmp/
+temp/
+.temp/
+coverage/
+.nyc_output/
+.turbo/
+
+# ── IDEs y editores ───────────────────────────────────────────────────────
+.idea/
+*.suo
+*.user
+
+# ── Sistema operativo ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

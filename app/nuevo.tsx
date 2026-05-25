@@ -7,19 +7,20 @@ import { Colors } from '@/constants/theme';
 import { type Dieta, useRegistro } from '@/contexts/registro-context';
 
 const TIPOS_JORNADA = [
-  { value: 'Casa', label: 'Casa (recuperación de horas)' },
-  { value: 'Cliente', label: 'Cliente' },
-  { value: 'Mixto', label: 'Mixto' },
+  { value: 'Oficina',     label: 'Oficina' },
+  { value: 'Cliente',     label: 'Cliente / Exterior' },
   { value: 'Teletrabajo', label: 'Teletrabajo' },
+  { value: 'Mixto',       label: 'Mixto (casa + cliente)' },
+  { value: 'Casa',        label: 'Casa (recuperación de horas)' },
 ];
 
 const DIETA_OPTS: { value: Dieta; label: string }[] = [
-  { value: 'ninguna', label: 'Sin dieta' },
-  { value: 'media', label: '½ Dieta' },
+  { value: 'ninguna',  label: 'Sin dieta' },
+  { value: 'media',    label: '½ Dieta' },
   { value: 'completa', label: 'Dieta completa' },
 ];
 
-const STANDARD_END_MIN = 17 * 60; // 17:00 en minutos
+const STANDARD_END_MIN = 17 * 60;
 
 function parseTime(value: string): number | null {
   const m = value.match(/^(\d{1,2}):(\d{2})$/);
@@ -35,6 +36,22 @@ function fmtDuration(minutes: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
+/** Convierte "H:MM", "H,5", "H.5" o "H" a minutos. Devuelve null si inválido. */
+function parseHoursInput(s: string): number | null {
+  const trimmed = s.trim();
+  if (!trimmed || trimmed === '0') return null;
+  const colon = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (colon) {
+    const h = parseInt(colon[1], 10);
+    const m = parseInt(colon[2], 10);
+    if (m > 59) return null;
+    return h * 60 + m;
+  }
+  const num = parseFloat(trimmed.replace(',', '.'));
+  if (!isNaN(num) && num > 0) return Math.round(num * 60);
+  return null;
+}
+
 function needsCliente(tipo: string) {
   return tipo === 'Cliente' || tipo === 'Mixto';
 }
@@ -43,21 +60,31 @@ export default function NuevoRegistroScreen() {
   const router = useRouter();
   const { addRegistro } = useRegistro();
 
-  const [tipoJornada, setTipoJornada] = useState('');
-  const [tipoOpen, setTipoOpen] = useState(false);
+  const [tipoJornada, setTipoJornada]   = useState('');
+  const [tipoOpen, setTipoOpen]         = useState(false);
   const [nombreCliente, setNombreCliente] = useState('');
 
+  // Horario normal (tramos, para tipos distintos de Mixto)
   const [inicio1, setInicio1] = useState('08:00');
-  const [fin1, setFin1] = useState('13:00');
+  const [fin1,    setFin1]    = useState('13:00');
   const [inicio2, setInicio2] = useState('14:00');
-  const [fin2, setFin2] = useState('17:00');
+  const [fin2,    setFin2]    = useState('17:00');
 
-  const [dieta, setDieta] = useState<Dieta>('ninguna');
-  const [pernocta, setPernocta] = useState(false);
+  // Horas desglosadas para Mixto
+  const [homeRecoveryInput, setHomeRecoveryInput] = useState('');
+  const [externalHoursInput, setExternalHoursInput] = useState('');
+
+  const [dieta,       setDieta]       = useState<Dieta>('ninguna');
+  const [pernocta,    setPernocta]    = useState(false);
   const [horasExtras, setHorasExtras] = useState('0');
   const [descripcion, setDescripcion] = useState('');
 
+  const isMixed = tipoJornada === 'Mixto';
+
+  // Duración para tipos con tramos de horario (no Mixto)
   const { duracion, suggestedExtras } = useMemo(() => {
+    if (isMixed) return { duracion: null, suggestedExtras: null };
+
     const s1 = parseTime(inicio1); const e1 = parseTime(fin1);
     if (s1 === null || e1 === null || e1 <= s1) return { duracion: null, suggestedExtras: null };
     let total = e1 - s1;
@@ -67,44 +94,79 @@ export default function NuevoRegistroScreen() {
     if (has2) {
       const s2 = parseTime(inicio2); const e2 = parseTime(fin2);
       if (s2 === null || e2 === null || e2 <= s2) return { duracion: null, suggestedExtras: null };
-      total += e2 - s2;
+      total  += e2 - s2;
       lastEnd = e2;
     }
 
-    const extraMin = Math.max(0, lastEnd - STANDARD_END_MIN);
+    const extraMin      = Math.max(0, lastEnd - STANDARD_END_MIN);
     const suggestedExtras = Math.round(extraMin / 60 * 10) / 10;
-
     return { duracion: fmtDuration(total), suggestedExtras };
-  }, [inicio1, fin1, inicio2, fin2]);
+  }, [isMixed, inicio1, fin1, inicio2, fin2]);
+
+  // Duración para Mixto: suma de ambas partes
+  const mixedDuration = useMemo(() => {
+    if (!isMixed) return null;
+    const homeMin = parseHoursInput(homeRecoveryInput) ?? 0;
+    const extMin  = parseHoursInput(externalHoursInput) ?? 0;
+    const total   = homeMin + extMin;
+    return total > 0 ? fmtDuration(total) : null;
+  }, [isMixed, homeRecoveryInput, externalHoursInput]);
 
   useEffect(() => {
-    if (suggestedExtras !== null) {
+    if (!isMixed && suggestedExtras !== null) {
       setHorasExtras(suggestedExtras > 0 ? String(suggestedExtras) : '0');
     }
-  }, [suggestedExtras]);
+  }, [isMixed, suggestedExtras]);
+
+  // Resetear campos al cambiar tipo
+  useEffect(() => {
+    setNombreCliente('');
+    setHomeRecoveryInput('');
+    setExternalHoursInput('');
+    setHorasExtras('0');
+  }, [tipoJornada]);
+
+  const effectiveDuration = isMixed ? mixedDuration : duracion;
 
   const canSave =
     tipoJornada.length > 0 &&
     (!needsCliente(tipoJornada) || nombreCliente.trim().length > 0) &&
-    duracion !== null;
+    effectiveDuration !== null;
 
   const handleGuardar = async () => {
-    if (!canSave || !duracion) return;
-    const has2 = inicio2.trim().length > 0 && fin2.trim().length > 0;
+    if (!canSave || !effectiveDuration) return;
 
-    await addRegistro({
-      titulo: tipoJornada,
-      cliente: needsCliente(tipoJornada) ? nombreCliente.trim() : undefined,
-      inicio: inicio1,
-      fin1: fin1,
-      inicio2: has2 ? inicio2 : undefined,
-      fin: has2 ? fin2 : fin1,
-      duracion,
-      dieta,
-      pernocta,
-      horasExtras: Number(horasExtras) || 0,
-      descripcion: descripcion.trim(),
-    });
+    if (isMixed) {
+      await addRegistro({
+        titulo:   tipoJornada,
+        cliente:  nombreCliente.trim() || undefined,
+        inicio:   '',
+        fin:      '',
+        duracion: effectiveDuration,
+        homeRecoveryHours: homeRecoveryInput.trim() || undefined,
+        externalHours:     externalHoursInput.trim() || undefined,
+        dieta,
+        pernocta,
+        horasExtras: Number(horasExtras) || 0,
+        descripcion: descripcion.trim(),
+      });
+    } else {
+      const has2 = inicio2.trim().length > 0 && fin2.trim().length > 0;
+      await addRegistro({
+        titulo:   tipoJornada,
+        cliente:  needsCliente(tipoJornada) ? nombreCliente.trim() : undefined,
+        inicio:   inicio1,
+        fin1:     fin1,
+        inicio2:  has2 ? inicio2 : undefined,
+        fin:      has2 ? fin2 : fin1,
+        duracion: effectiveDuration,
+        dieta,
+        pernocta,
+        horasExtras: Number(horasExtras) || 0,
+        descripcion: descripcion.trim(),
+      });
+    }
+
     router.push('/registros');
   };
 
@@ -152,7 +214,7 @@ export default function NuevoRegistroScreen() {
           )}
         </View>
 
-        {/* Cliente (Cliente y Mixto) */}
+        {/* Cliente (solo para Cliente y Mixto) */}
         {needsCliente(tipoJornada) && (
           <View style={styles.fieldset}>
             <Text style={styles.fieldLabel}>
@@ -165,121 +227,164 @@ export default function NuevoRegistroScreen() {
               value={nombreCliente}
               onChangeText={setNombreCliente}
               autoCapitalize="words"
-              autoFocus
             />
           </View>
         )}
 
-        {/* Horario doble */}
-        <View style={styles.fieldset}>
-          <Text style={styles.fieldLabel}>Horario</Text>
+        {/* HORARIO: tramos normales (no Mixto) */}
+        {!isMixed && tipoJornada.length > 0 && (
+          <View style={styles.fieldset}>
+            <Text style={styles.fieldLabel}>Horario</Text>
 
-          <Text style={styles.tramoLabel}>Tramo 1</Text>
-          <View style={styles.timeRow}>
-            <TextInput
-              style={[styles.input, styles.timeInput]}
-              placeholder="08:00"
-              placeholderTextColor="#9ca3af"
-              value={inicio1}
-              onChangeText={setInicio1}
-              keyboardType="numbers-and-punctuation"
-            />
-            <Text style={styles.timeSep}>→</Text>
-            <TextInput
-              style={[styles.input, styles.timeInput]}
-              placeholder="13:00"
-              placeholderTextColor="#9ca3af"
-              value={fin1}
-              onChangeText={setFin1}
-              keyboardType="numbers-and-punctuation"
-            />
-          </View>
+            <Text style={styles.tramoLabel}>Tramo 1</Text>
+            <View style={styles.timeRow}>
+              <TextInput
+                style={[styles.input, styles.timeInput]}
+                placeholder="08:00"
+                placeholderTextColor="#9ca3af"
+                value={inicio1}
+                onChangeText={setInicio1}
+                keyboardType="numbers-and-punctuation"
+              />
+              <Text style={styles.timeSep}>→</Text>
+              <TextInput
+                style={[styles.input, styles.timeInput]}
+                placeholder="13:00"
+                placeholderTextColor="#9ca3af"
+                value={fin1}
+                onChangeText={setFin1}
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
 
-          <Text style={[styles.tramoLabel, { marginTop: 10 }]}>Tramo 2 (tarde)</Text>
-          <View style={styles.timeRow}>
-            <TextInput
-              style={[styles.input, styles.timeInput]}
-              placeholder="14:00"
-              placeholderTextColor="#9ca3af"
-              value={inicio2}
-              onChangeText={setInicio2}
-              keyboardType="numbers-and-punctuation"
-            />
-            <Text style={styles.timeSep}>→</Text>
-            <TextInput
-              style={[styles.input, styles.timeInput]}
-              placeholder="17:00"
-              placeholderTextColor="#9ca3af"
-              value={fin2}
-              onChangeText={setFin2}
-              keyboardType="numbers-and-punctuation"
-            />
-          </View>
+            <Text style={[styles.tramoLabel, { marginTop: 10 }]}>Tramo 2 (tarde)</Text>
+            <View style={styles.timeRow}>
+              <TextInput
+                style={[styles.input, styles.timeInput]}
+                placeholder="14:00"
+                placeholderTextColor="#9ca3af"
+                value={inicio2}
+                onChangeText={setInicio2}
+                keyboardType="numbers-and-punctuation"
+              />
+              <Text style={styles.timeSep}>→</Text>
+              <TextInput
+                style={[styles.input, styles.timeInput]}
+                placeholder="17:00"
+                placeholderTextColor="#9ca3af"
+                value={fin2}
+                onChangeText={setFin2}
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
 
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total trabajado</Text>
-            <Text style={[styles.totalValue, !duracion && styles.totalInvalid]}>
-              {duracion ?? 'Revisa los horarios'}
-            </Text>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total trabajado</Text>
+              <Text style={[styles.totalValue, !duracion && styles.totalInvalid]}>
+                {duracion ?? 'Revisa los horarios'}
+              </Text>
+            </View>
           </View>
-        </View>
+        )}
+
+        {/* HORARIO: desglose para Mixto */}
+        {isMixed && (
+          <View style={styles.fieldset}>
+            <Text style={styles.fieldLabel}>Desglose de horas</Text>
+
+            <Text style={styles.tramoLabel}>Horas en casa / recuperación</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="p.ej. 2:00 o 2"
+              placeholderTextColor="#9ca3af"
+              value={homeRecoveryInput}
+              onChangeText={setHomeRecoveryInput}
+              keyboardType="numbers-and-punctuation"
+            />
+
+            <Text style={[styles.tramoLabel, { marginTop: 10 }]}>Horas cliente / exterior</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="p.ej. 6:30 o 6.5"
+              placeholderTextColor="#9ca3af"
+              value={externalHoursInput}
+              onChangeText={setExternalHoursInput}
+              keyboardType="numbers-and-punctuation"
+            />
+
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total jornada</Text>
+              <Text style={[styles.totalValue, !mixedDuration && styles.totalInvalid]}>
+                {mixedDuration ?? 'Introduce al menos un tramo'}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Dieta */}
-        <View style={styles.fieldset}>
-          <Text style={styles.fieldLabel}>Dieta</Text>
-          <View style={styles.chipRow}>
-            {DIETA_OPTS.map((opt) => (
-              <Pressable
-                key={opt.value}
-                style={[styles.chip, dieta === opt.value && styles.chipSelected]}
-                onPress={() => setDieta(opt.value)}
-              >
-                <Text style={[styles.chipText, dieta === opt.value && styles.chipTextSelected]}>
-                  {opt.label}
-                </Text>
-              </Pressable>
-            ))}
+        {tipoJornada.length > 0 && (
+          <View style={styles.fieldset}>
+            <Text style={styles.fieldLabel}>Dieta</Text>
+            <View style={styles.chipRow}>
+              {DIETA_OPTS.map((opt) => (
+                <Pressable
+                  key={opt.value}
+                  style={[styles.chip, dieta === opt.value && styles.chipSelected]}
+                  onPress={() => setDieta(opt.value)}
+                >
+                  <Text style={[styles.chipText, dieta === opt.value && styles.chipTextSelected]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Pernocta */}
-        <View style={styles.fieldset}>
-          <Text style={styles.fieldLabel}>Pernocta</Text>
-          <View style={styles.chipRow}>
-            <Pressable style={[styles.chip, !pernocta && styles.chipSelected]} onPress={() => setPernocta(false)}>
-              <Text style={[styles.chipText, !pernocta && styles.chipTextSelected]}>No</Text>
-            </Pressable>
-            <Pressable style={[styles.chip, pernocta && styles.chipSelected]} onPress={() => setPernocta(true)}>
-              <Text style={[styles.chipText, pernocta && styles.chipTextSelected]}>Sí</Text>
-            </Pressable>
+        {tipoJornada.length > 0 && (
+          <View style={styles.fieldset}>
+            <Text style={styles.fieldLabel}>Pernocta</Text>
+            <View style={styles.chipRow}>
+              <Pressable style={[styles.chip, !pernocta && styles.chipSelected]} onPress={() => setPernocta(false)}>
+                <Text style={[styles.chipText, !pernocta && styles.chipTextSelected]}>No</Text>
+              </Pressable>
+              <Pressable style={[styles.chip, pernocta && styles.chipSelected]} onPress={() => setPernocta(true)}>
+                <Text style={[styles.chipText, pernocta && styles.chipTextSelected]}>Sí</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Horas extras */}
-        <View style={styles.fieldset}>
-          <Text style={styles.fieldLabel}>Horas extras</Text>
-          <TextInput
-            style={[styles.input, styles.inputCompact]}
-            placeholder="0"
-            placeholderTextColor="#9ca3af"
-            value={horasExtras}
-            onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.]/g, ''))}
-            keyboardType="decimal-pad"
-          />
-        </View>
+        {tipoJornada.length > 0 && (
+          <View style={styles.fieldset}>
+            <Text style={styles.fieldLabel}>Horas extras (+50 %)</Text>
+            <TextInput
+              style={[styles.input, styles.inputCompact]}
+              placeholder="0"
+              placeholderTextColor="#9ca3af"
+              value={horasExtras}
+              onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.:,]/g, ''))}
+              keyboardType="numbers-and-punctuation"
+            />
+          </View>
+        )}
 
         {/* Descripción */}
-        <View style={styles.fieldset}>
-          <Text style={styles.fieldLabel}>Descripción (opcional)</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Tareas, incidencias o notas"
-            placeholderTextColor="#9ca3af"
-            value={descripcion}
-            onChangeText={setDescripcion}
-            multiline
-          />
-        </View>
+        {tipoJornada.length > 0 && (
+          <View style={styles.fieldset}>
+            <Text style={styles.fieldLabel}>Notas (opcional)</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Tareas, incidencias o notas"
+              placeholderTextColor="#9ca3af"
+              value={descripcion}
+              onChangeText={setDescripcion}
+              multiline
+            />
+          </View>
+        )}
 
         <Pressable
           style={[styles.buttonPrimary, !canSave && styles.buttonDisabled]}
@@ -299,7 +404,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4,
     zIndex: 10, elevation: 6, backgroundColor: Colors.light.background,
   },
-  page: { padding: 24, paddingTop: 16, gap: 4 },
+  page: { padding: 24, paddingTop: 16, gap: 4, paddingBottom: 40 },
   title: { fontSize: 30, fontWeight: '800', color: Colors.brandDark },
   subtitle: { marginTop: 4, marginBottom: 8, color: '#4b5563', fontSize: 15, lineHeight: 22 },
   required: { color: Colors.brand },

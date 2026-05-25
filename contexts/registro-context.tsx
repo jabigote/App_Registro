@@ -17,6 +17,10 @@ export type Registro = {
   pernocta?: boolean;
   horasExtras?: number;
   createdAt: string;
+  /** Solo para jornada Mixto: horas de la parte en casa / recuperación (formato "H:MM" o decimal) */
+  homeRecoveryHours?: string;
+  /** Solo para jornada Mixto: horas de la parte con cliente / exterior (formato "H:MM" o decimal) */
+  externalHours?: string;
 };
 
 type RegistroContextValue = {

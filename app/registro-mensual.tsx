@@ -5,7 +5,11 @@ import { BrandLogo } from '@/components/brand-logo';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { type Registro, useRegistro } from '@/contexts/registro-context';
-import { shareMonthlyReportExcel } from '@/src/services/excel/generateMonthlyReport';
+import {
+  type MonthlyDayRecord,
+  type WorkdayType,
+  shareMonthlyReportFromTemplate,
+} from '@/src/services/excel/generateMonthlyReportFromTemplate';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -61,37 +65,37 @@ export default function RegistroMensualScreen() {
   const totalDietas = registrosDelMes.filter((r) => r.dieta && r.dieta !== 'ninguna').length;
   const totalPernoctas = registrosDelMes.filter((r) => r.pernocta).length;
 
+  const TIPO_MAP: Record<string, WorkdayType> = {
+    'Oficina':     'office',
+    'Casa':        'home_recovery',
+    'Cliente':     'external',
+    'Mixto':       'mixed',
+    'Teletrabajo': 'remote',
+  };
+
   const handleExportar = async () => {
     try {
-      // Construir el mapa de días a partir de los registros del mes
-      const days: Record<number, import('@/src/services/excel/generateMonthlyReport').DayData> = {};
+      const records: MonthlyDayRecord[] = registrosDelMes.map((reg) => ({
+        day:          getDayFromRegistro(reg),
+        workdayType:  TIPO_MAP[reg.titulo] as WorkdayType | undefined,
+        // Para Mixto se usan los campos de desglose; para el resto, duracion como normalHours
+        normalHours:       reg.titulo !== 'Mixto' ? reg.duracion : undefined,
+        homeRecoveryHours: reg.homeRecoveryHours,
+        externalHours:     reg.externalHours,
+        // horasExtras se mapea a overtime50 (+50 %)
+        overtime50: reg.horasExtras && reg.horasExtras > 0 ? reg.horasExtras : undefined,
+        halfDiet:  reg.dieta === 'media'    ? 0.5 : undefined,
+        fullDiet:  reg.dieta === 'completa' ? 1   : undefined,
+        overnight: reg.pernocta ? 1 : undefined,
+        clientName: reg.cliente || undefined,
+        notes:      reg.descripcion || undefined,
+      }));
 
-      for (const reg of registrosDelMes) {
-        const day = getDayFromRegistro(reg);
-        const h = durationToHours(reg.duracion);
-        const esCasa = reg.titulo === 'Casa';
-        const esTele = reg.titulo === 'Teletrabajo';
-        const esExt = reg.titulo === 'Cliente' || reg.titulo === 'Mixto';
-        const nota = [reg.cliente, reg.descripcion].filter(Boolean).join(' – ');
-
-        days[day] = {
-          recuperacion:  esCasa ? h : undefined,
-          horasOficina:  esTele ? h : undefined,
-          horasExterior: esExt  ? h : undefined,
-          extrasP25: reg.horasExtras && reg.horasExtras > 0 ? reg.horasExtras : undefined,
-          totalHoras: h,
-          mediaDieta:    reg.dieta === 'media'    ? 0.5 : undefined,
-          dietaCompleta: reg.dieta === 'completa' ? 1   : undefined,
-          pernocta: reg.pernocta ? 1 : undefined,
-          notas: nota || undefined,
-        };
-      }
-
-      await shareMonthlyReportExcel({
+      await shareMonthlyReportFromTemplate({
         year,
-        month: month + 1,         // month en el servicio es 1-12; aquí month es 0-indexed
+        month: month + 1, // el servicio usa 1–12; aquí month es 0-indexed
         employeeName: usuario?.nombre ?? 'Empleado',
-        days,
+        records,
       });
     } catch (e) {
       Alert.alert('Error', 'No se pudo generar el reporte. Inténtalo de nuevo.');
