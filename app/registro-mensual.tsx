@@ -56,12 +56,15 @@ export default function RegistroMensualScreen() {
     return d.getFullYear() === year && d.getMonth() === month;
   });
 
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+
   const prevMonth = () => {
     if (month === 0) { setMonth(11); setYear((y) => y - 1); }
     else setMonth((m) => m - 1);
   };
 
   const nextMonth = () => {
+    if (isCurrentMonth) return;
     if (month === 11) { setMonth(0); setYear((y) => y + 1); }
     else setMonth((m) => m + 1);
   };
@@ -122,8 +125,13 @@ export default function RegistroMensualScreen() {
             <Text style={styles.monthBtnText}>‹</Text>
           </Pressable>
           <Text style={styles.monthLabel}>{MESES[month]} {year}</Text>
-          <Pressable style={styles.monthBtn} onPress={nextMonth} hitSlop={8}>
-            <Text style={styles.monthBtnText}>›</Text>
+          <Pressable
+            style={[styles.monthBtn, isCurrentMonth && styles.monthBtnDisabled]}
+            onPress={nextMonth}
+            disabled={isCurrentMonth}
+            hitSlop={8}
+          >
+            <Text style={[styles.monthBtnText, isCurrentMonth && styles.monthBtnTextDisabled]}>›</Text>
           </Pressable>
         </View>
 
@@ -230,7 +238,9 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
   },
   monthBtn: { padding: 4 },
+  monthBtnDisabled: { opacity: 0.25 },
   monthBtnText: { fontSize: 28, color: Colors.brand, fontWeight: '700', lineHeight: 30 },
+  monthBtnTextDisabled: { color: '#9ca3af' },
   monthLabel: { fontSize: 18, fontWeight: '700', color: Colors.brandDark },
 
   summaryRow: { flexDirection: 'row', gap: 10 },

@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -7,6 +7,7 @@ import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { type Dieta, useRegistro } from '@/contexts/registro-context';
 import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
+import { fmtDuration, parseHoursInput, parseTime, STANDARD_END_MIN } from '@/utils/time';
 
 const TIPOS_JORNADA = [
   { value: 'Oficina',     label: 'Oficina' },
@@ -22,37 +23,6 @@ const DIETA_OPTS: { value: Dieta; label: string }[] = [
   { value: 'completa', label: 'Dieta completa' },
 ];
 
-const STANDARD_END_MIN = 17 * 60;
-
-function parseTime(value: string): number | null {
-  const m = value.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const h = Number(m[1]); const min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
-}
-
-function fmtDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
-
-/** Convierte "H:MM", "H,5", "H.5" o "H" a minutos. Devuelve null si inválido. */
-function parseHoursInput(s: string): number | null {
-  const trimmed = s.trim();
-  if (!trimmed || trimmed === '0') return null;
-  const colon = trimmed.match(/^(\d{1,2}):(\d{2})$/);
-  if (colon) {
-    const h = parseInt(colon[1], 10);
-    const m = parseInt(colon[2], 10);
-    if (m > 59) return null;
-    return h * 60 + m;
-  }
-  const num = parseFloat(trimmed.replace(',', '.'));
-  if (!isNaN(num) && num > 0) return Math.round(num * 60);
-  return null;
-}
 
 function needsCliente(tipo: string) {
   return tipo === 'Cliente' || tipo === 'Mixto';
@@ -60,11 +30,13 @@ function needsCliente(tipo: string) {
 
 export default function NuevoRegistroScreen() {
   const router = useRouter();
-  const { addRegistro } = useRegistro();
+  const { inicioPreset, finPreset, fechaPreset } =
+    useLocalSearchParams<{ inicioPreset?: string; finPreset?: string; fechaPreset?: string }>();
+  const { addRegistro, saveQuickEntry } = useRegistro();
   const { toast, showToast, dismissToast } = useToast();
   const [saving, setSaving] = useState(false);
 
-  const [fecha, setFecha] = useState(todayDateStr);
+  const [fecha, setFecha] = useState(fechaPreset ?? todayDateStr());
   const today = todayDateStr();
 
   const [tipoJornada, setTipoJornada]   = useState('');
@@ -72,10 +44,11 @@ export default function NuevoRegistroScreen() {
   const [nombreCliente, setNombreCliente] = useState('');
 
   // Horario normal (tramos, para tipos distintos de Mixto)
-  const [inicio1, setInicio1] = useState('08:00');
-  const [fin1,    setFin1]    = useState('13:00');
-  const [inicio2, setInicio2] = useState('14:00');
-  const [fin2,    setFin2]    = useState('17:00');
+  const [inicio1, setInicio1] = useState(inicioPreset ?? '08:00');
+  const [fin1,    setFin1]    = useState(finPreset    ?? '13:00');
+  // Tramo 2 vacío cuando venimos del fichaje rápido (ya tenemos inicio+fin exactos)
+  const [inicio2, setInicio2] = useState(inicioPreset ? '' : '14:00');
+  const [fin2,    setFin2]    = useState(inicioPreset ? '' : '17:00');
 
   // Horas desglosadas para Mixto
   const [homeRecoveryInput, setHomeRecoveryInput] = useState('');
@@ -177,6 +150,7 @@ export default function NuevoRegistroScreen() {
       });
     }
 
+    if (inicioPreset) await saveQuickEntry(null);
     showToast('Jornada guardada');
     setTimeout(() => router.push('/registros'), 1200);
   };

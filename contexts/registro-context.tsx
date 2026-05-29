@@ -3,6 +3,8 @@ import { createContext, type ReactNode, useContext, useEffect, useRef, useState 
 
 export type Dieta = 'ninguna' | 'media' | 'completa';
 
+export type QuickEntry = { fecha: string; inicio: string; fin?: string };
+
 export type Registro = {
   id: string;
   titulo: string;
@@ -31,9 +33,12 @@ type RegistroContextValue = {
   addRegistro: (registro: Omit<Registro, 'id' | 'createdAt'>) => Promise<void>;
   updateRegistro: (id: string, data: Partial<Omit<Registro, 'id' | 'createdAt'>>) => Promise<void>;
   deleteRegistro: (id: string) => Promise<void>;
+  quickEntry: QuickEntry | null;
+  saveQuickEntry: (entry: QuickEntry | null) => Promise<void>;
 };
 
 const STORAGE_KEY = '@salvagnini_registros';
+const QUICK_KEY   = '@salvagnini_quick_entry';
 const RegistroContext = createContext<RegistroContextValue | undefined>(undefined);
 
 function isRegistro(value: unknown): value is Registro {
@@ -55,26 +60,46 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(true);
   const registrosRef = useRef<Registro[]>([]);
+  const [quickEntry, setQuickEntryState] = useState<QuickEntry | null>(null);
 
   useEffect(() => {
-    async function loadRegistros() {
+    async function loadData() {
       try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          const storedRegistros = Array.isArray(parsed) ? parsed.filter(isRegistro) : [];
-          registrosRef.current = storedRegistros;
-          setRegistros(storedRegistros);
+        const [storedReg, storedQuick] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY),
+          AsyncStorage.getItem(QUICK_KEY),
+        ]);
+        if (storedReg) {
+          const parsed = JSON.parse(storedReg);
+          const list = Array.isArray(parsed) ? parsed.filter(isRegistro) : [];
+          registrosRef.current = list;
+          setRegistros(list);
+        }
+        if (storedQuick) {
+          setQuickEntryState(JSON.parse(storedQuick));
         }
       } catch (error) {
-        console.warn('Error cargando registros', error);
+        console.warn('Error cargando datos', error);
       } finally {
         setLoading(false);
       }
     }
 
-    loadRegistros();
+    loadData();
   }, []);
+
+  const saveQuickEntry = async (entry: QuickEntry | null) => {
+    setQuickEntryState(entry);
+    try {
+      if (entry) {
+        await AsyncStorage.setItem(QUICK_KEY, JSON.stringify(entry));
+      } else {
+        await AsyncStorage.removeItem(QUICK_KEY);
+      }
+    } catch (error) {
+      console.warn('Error guardando fichaje rápido', error);
+    }
+  };
 
   const addRegistro = async (registro: Omit<Registro, 'id' | 'createdAt'>) => {
     const newRegistro: Registro = {
@@ -117,7 +142,7 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <RegistroContext.Provider value={{ registros, loading, addRegistro, updateRegistro, deleteRegistro }}>
+    <RegistroContext.Provider value={{ registros, loading, addRegistro, updateRegistro, deleteRegistro, quickEntry, saveQuickEntry }}>
       {children}
     </RegistroContext.Provider>
   );

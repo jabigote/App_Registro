@@ -1,15 +1,19 @@
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 
 import { Colors } from '@/constants/theme';
+import { useRegistro } from '@/contexts/registro-context';
+import { todayDateStr } from '@/utils/date';
+import { roundToNearest30 } from '@/utils/time';
 
 const brandMark = require('../assets/images/salvagnini-mark.png');
 const brandLogo = require('../assets/images/salvagnini-logo.webp');
 
 export function BrandLogo() {
   const router = useRouter();
+  const { quickEntry, saveQuickEntry } = useRegistro();
   const [menuVisible, setMenuVisible] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
   const [markFailed, setMarkFailed] = useState(false);
@@ -17,6 +21,31 @@ export function BrandLogo() {
   const handleNavigate = (path: '/' | '/nuevo' | '/registros' | '/registro-mensual' | '/ajustes') => {
     setMenuVisible(false);
     router.push(path);
+  };
+
+  const handleEntrada = async () => {
+    setMenuVisible(false);
+    const hora = roundToNearest30(new Date());
+    await saveQuickEntry({ fecha: todayDateStr(), inicio: hora });
+  };
+
+  const handleSalida = () => {
+    if (!quickEntry) return;
+    setMenuVisible(false);
+    const hora = roundToNearest30(new Date());
+    router.push({
+      pathname: '/nuevo',
+      params: {
+        fechaPreset:  quickEntry.fecha,
+        inicioPreset: quickEntry.inicio,
+        finPreset:    hora,
+      },
+    });
+  };
+
+  const handleCancelarEntrada = async () => {
+    setMenuVisible(false);
+    await saveQuickEntry(null);
   };
 
   return (
@@ -53,6 +82,7 @@ export function BrandLogo() {
       {/* Menú desplegable */}
       {menuVisible && (
         <View style={styles.menu}>
+          {/* Navegación */}
           <Pressable style={styles.menuItem} onPress={() => handleNavigate('/')}>
             <Text style={styles.menuItemText}>Inicio</Text>
           </Pressable>
@@ -65,6 +95,26 @@ export function BrandLogo() {
           <Pressable style={styles.menuItem} onPress={() => handleNavigate('/ajustes')}>
             <Text style={styles.menuItemText}>Ajustes</Text>
           </Pressable>
+
+          {/* Separador */}
+          <View style={styles.menuDivider} />
+
+          {/* Fichaje rápido */}
+          {quickEntry ? (
+            <>
+              <Pressable style={styles.menuItem} onPress={handleCancelarEntrada}>
+                <Text style={styles.menuItemFichaje}>Entrada: {quickEntry.inicio}</Text>
+                <Text style={styles.menuItemFichajeHint}>Toca para cancelar</Text>
+              </Pressable>
+              <Pressable style={styles.menuItem} onPress={handleSalida}>
+                <Text style={[styles.menuItemFichaje, { color: Colors.brand }]}>Registrar salida →</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable style={styles.menuItem} onPress={handleEntrada}>
+              <Text style={[styles.menuItemFichaje, { color: Colors.brand }]}>Registrar entrada</Text>
+            </Pressable>
+          )}
         </View>
       )}
     </View>
@@ -104,8 +154,6 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
-  // fill: la imagen se estira para ocupar EXACTAMENTE el área indicada
-  // — garantiza que el logo sea tan alto como el botón S (56 px)
   logoImage: {
     width: '100%',
     height: 160,
@@ -126,7 +174,7 @@ const styles = StyleSheet.create({
     top: 190,
     left: 0,
     zIndex: 10,
-    width: 200,
+    width: 210,
     backgroundColor: Colors.light.card,
     borderRadius: 18,
     paddingVertical: 10,
@@ -144,5 +192,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.brandDark,
     fontWeight: '700',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 4,
+    marginHorizontal: -4,
+  },
+  menuItemFichaje: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.brandDark,
+  },
+  menuItemFichajeHint: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
   },
 });

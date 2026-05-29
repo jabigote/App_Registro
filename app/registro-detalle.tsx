@@ -1,18 +1,19 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { type Dieta, useRegistro } from '@/contexts/registro-context';
 import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
+import { fmtDuration, parseHoursInput, parseTime, STANDARD_END_MIN } from '@/utils/time';
 
 const TIPOS_JORNADA = [
-  { value: 'Casa',        label: 'Casa (recuperación de horas)' },
-  { value: 'Cliente',     label: 'Cliente' },
-  { value: 'Mixto',       label: 'Mixto' },
   { value: 'Oficina',     label: 'Oficina' },
+  { value: 'Cliente',     label: 'Cliente / Exterior' },
   { value: 'Teletrabajo', label: 'Teletrabajo' },
+  { value: 'Mixto',       label: 'Mixto (casa + cliente)' },
+  { value: 'Casa',        label: 'Casa (recuperación de horas)' },
 ];
 
 const DIETA_OPTS: { value: Dieta; label: string }[] = [
@@ -26,22 +27,6 @@ const DIETA_LABEL: Record<Dieta, string> = {
   media: '½ Dieta',
   completa: 'Dieta completa',
 };
-
-const STANDARD_END_MIN = 17 * 60;
-
-function parseTime(v: string): number | null {
-  const m = v.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const h = Number(m[1]); const min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
-}
-
-function fmtDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
 
 function needsCliente(tipo: string) {
   return tipo === 'Cliente' || tipo === 'Mixto';
@@ -69,12 +54,18 @@ export default function RegistroDetalleScreen() {
   const [fin1, setFin1] = useState(registro?.fin1 ?? registro?.fin ?? '13:00');
   const [inicio2, setInicio2] = useState(registro?.inicio2 ?? '');
   const [fin2, setFin2] = useState(registro?.inicio2 ? (registro?.fin ?? '17:00') : '');
+  const [homeRecoveryInput, setHomeRecoveryInput] = useState(registro?.homeRecoveryHours ?? '');
+  const [externalHoursInput, setExternalHoursInput] = useState(registro?.externalHours ?? '');
   const [dieta, setDieta] = useState<Dieta>(registro?.dieta ?? 'ninguna');
   const [pernocta, setPernocta] = useState(registro?.pernocta ?? false);
   const [horasExtras, setHorasExtras] = useState(String(registro?.horasExtras ?? 0));
   const [descripcion, setDescripcion] = useState(registro?.descripcion ?? '');
 
+  const isMixed = tipoJornada === 'Mixto';
+
+  // Duración para tipos con tramos de horario (no Mixto)
   const { duracion, suggestedExtras } = useMemo(() => {
+    if (isMixed) return { duracion: null, suggestedExtras: null };
     const s1 = parseTime(inicio1); const e1 = parseTime(fin1);
     if (s1 === null || e1 === null || e1 <= s1) return { duracion: null, suggestedExtras: null };
     let total = e1 - s1;
@@ -89,21 +80,34 @@ export default function RegistroDetalleScreen() {
     }
 
     const extraMin = Math.max(0, lastEnd - STANDARD_END_MIN);
-    const suggestedExtras = Math.round(extraMin / 60 * 10) / 10;
+    return { duracion: fmtDuration(total), suggestedExtras: Math.round(extraMin / 60 * 10) / 10 };
+  }, [isMixed, inicio1, fin1, inicio2, fin2]);
 
-    return { duracion: fmtDuration(total), suggestedExtras };
-  }, [inicio1, fin1, inicio2, fin2]);
+  // Duración para Mixto
+  const mixedDuration = useMemo(() => {
+    if (!isMixed) return null;
+    const homeMin = parseHoursInput(homeRecoveryInput) ?? 0;
+    const extMin  = parseHoursInput(externalHoursInput) ?? 0;
+    const total   = homeMin + extMin;
+    return total > 0 ? fmtDuration(total) : null;
+  }, [isMixed, homeRecoveryInput, externalHoursInput]);
 
+  const effectiveDuration = isMixed ? mixedDuration : duracion;
+
+  // Actualiza horas extras al cambiar los horarios, pero NO en el primer render
+  // (para no sobreescribir el valor guardado al abrir el detalle)
+  const mountedRef = useRef(false);
   useEffect(() => {
-    if (suggestedExtras !== null) {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    if (!isMixed && suggestedExtras !== null) {
       setHorasExtras(suggestedExtras > 0 ? String(suggestedExtras) : '0');
     }
-  }, [suggestedExtras]);
+  }, [isMixed, suggestedExtras]);
 
   const canSave =
     tipoJornada.length > 0 &&
     (!needsCliente(tipoJornada) || nombreCliente.trim().length > 0) &&
-    duracion !== null;
+    effectiveDuration !== null;
 
   if (!registro) {
     return (
@@ -137,22 +141,41 @@ export default function RegistroDetalleScreen() {
   };
 
   const handleGuardar = async () => {
-    if (!canSave || !duracion) return;
-    const has2 = inicio2.trim().length > 0 && fin2.trim().length > 0;
-    await updateRegistro(id!, {
-      titulo: tipoJornada,
-      cliente: needsCliente(tipoJornada) ? nombreCliente.trim() : undefined,
-      fecha,
-      inicio: inicio1,
-      fin1: fin1,
-      inicio2: has2 ? inicio2 : undefined,
-      fin: has2 ? fin2 : fin1,
-      duracion,
-      dieta,
-      pernocta,
-      horasExtras: Number(horasExtras) || 0,
-      descripcion: descripcion.trim(),
-    });
+    if (!canSave || !effectiveDuration) return;
+    if (isMixed) {
+      await updateRegistro(id!, {
+        titulo:   tipoJornada,
+        cliente:  nombreCliente.trim() || undefined,
+        fecha,
+        inicio:   '',
+        fin:      '',
+        duracion: effectiveDuration,
+        homeRecoveryHours: homeRecoveryInput.trim() || undefined,
+        externalHours:     externalHoursInput.trim() || undefined,
+        dieta,
+        pernocta,
+        horasExtras: Number(horasExtras) || 0,
+        descripcion: descripcion.trim(),
+      });
+    } else {
+      const has2 = inicio2.trim().length > 0 && fin2.trim().length > 0;
+      await updateRegistro(id!, {
+        titulo:   tipoJornada,
+        cliente:  needsCliente(tipoJornada) ? nombreCliente.trim() : undefined,
+        fecha,
+        inicio:   inicio1,
+        fin1:     fin1,
+        inicio2:  has2 ? inicio2 : undefined,
+        fin:      has2 ? fin2 : fin1,
+        duracion: effectiveDuration,
+        homeRecoveryHours: undefined,
+        externalHours:     undefined,
+        dieta,
+        pernocta,
+        horasExtras: Number(horasExtras) || 0,
+        descripcion: descripcion.trim(),
+      });
+    }
     setEditMode(false);
     showToast('Cambios guardados');
   };
@@ -161,6 +184,7 @@ export default function RegistroDetalleScreen() {
   const extras = registro.horasExtras && registro.horasExtras > 0
     ? `${registro.horasExtras}h extra` : null;
   const registroFecha = registro.fecha ?? registro.createdAt.slice(0, 10);
+  const registroIsMixed = registro.titulo === 'Mixto';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -218,7 +242,16 @@ export default function RegistroDetalleScreen() {
             <View style={styles.infoCard}>
               <Row label="Fecha" value={formatFecha(registroFecha)} />
               {registro.cliente ? <Row label="Cliente" value={registro.cliente} /> : null}
-              {registro.inicio2 ? (
+              {registroIsMixed ? (
+                <>
+                  {registro.homeRecoveryHours
+                    ? <Row label="Casa / Recuperación" value={registro.homeRecoveryHours} />
+                    : null}
+                  {registro.externalHours
+                    ? <Row label="Cliente / Exterior" value={registro.externalHours} />
+                    : null}
+                </>
+              ) : registro.inicio2 ? (
                 <>
                   <Row label="Tramo 1" value={`${registro.inicio} — ${registro.fin1 ?? registro.fin}`} />
                   <Row label="Tramo 2" value={`${registro.inicio2} — ${registro.fin}`} />
@@ -258,6 +291,7 @@ export default function RegistroDetalleScreen() {
               </View>
             </View>
 
+            {/* Tipo de jornada */}
             <View style={styles.fieldset}>
               <Text style={styles.fieldLabel}>Tipo de jornada</Text>
               <Pressable
@@ -288,6 +322,7 @@ export default function RegistroDetalleScreen() {
               )}
             </View>
 
+            {/* Cliente */}
             {needsCliente(tipoJornada) && (
               <View style={styles.fieldset}>
                 <Text style={styles.fieldLabel}>
@@ -304,59 +339,97 @@ export default function RegistroDetalleScreen() {
               </View>
             )}
 
-            <View style={styles.fieldset}>
-              <Text style={styles.fieldLabel}>Horario</Text>
+            {/* Horario normal (no Mixto) */}
+            {!isMixed && (
+              <View style={styles.fieldset}>
+                <Text style={styles.fieldLabel}>Horario</Text>
 
-              <Text style={styles.tramoLabel}>Tramo 1</Text>
-              <View style={styles.timeRow}>
-                <TextInput
-                  style={[styles.input, styles.timeInput]}
-                  value={inicio1}
-                  onChangeText={setInicio1}
-                  keyboardType="numbers-and-punctuation"
-                  placeholder="08:00"
-                  placeholderTextColor="#9ca3af"
-                />
-                <Text style={styles.timeSep}>→</Text>
-                <TextInput
-                  style={[styles.input, styles.timeInput]}
-                  value={fin1}
-                  onChangeText={setFin1}
-                  keyboardType="numbers-and-punctuation"
-                  placeholder="13:00"
-                  placeholderTextColor="#9ca3af"
-                />
+                <Text style={styles.tramoLabel}>Tramo 1</Text>
+                <View style={styles.timeRow}>
+                  <TextInput
+                    style={[styles.input, styles.timeInput]}
+                    value={inicio1}
+                    onChangeText={setInicio1}
+                    keyboardType="numbers-and-punctuation"
+                    placeholder="08:00"
+                    placeholderTextColor="#9ca3af"
+                  />
+                  <Text style={styles.timeSep}>→</Text>
+                  <TextInput
+                    style={[styles.input, styles.timeInput]}
+                    value={fin1}
+                    onChangeText={setFin1}
+                    keyboardType="numbers-and-punctuation"
+                    placeholder="13:00"
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
+
+                <Text style={[styles.tramoLabel, { marginTop: 10 }]}>Tramo 2 (tarde)</Text>
+                <View style={styles.timeRow}>
+                  <TextInput
+                    style={[styles.input, styles.timeInput]}
+                    value={inicio2}
+                    onChangeText={setInicio2}
+                    keyboardType="numbers-and-punctuation"
+                    placeholder="14:00"
+                    placeholderTextColor="#9ca3af"
+                  />
+                  <Text style={styles.timeSep}>→</Text>
+                  <TextInput
+                    style={[styles.input, styles.timeInput]}
+                    value={fin2}
+                    onChangeText={setFin2}
+                    keyboardType="numbers-and-punctuation"
+                    placeholder="17:00"
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
+
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total trabajado</Text>
+                  <Text style={[styles.totalValue, !duracion && styles.totalInvalid]}>
+                    {duracion ?? 'Revisa los horarios'}
+                  </Text>
+                </View>
               </View>
+            )}
 
-              <Text style={[styles.tramoLabel, { marginTop: 10 }]}>Tramo 2 (tarde)</Text>
-              <View style={styles.timeRow}>
+            {/* Desglose para Mixto */}
+            {isMixed && (
+              <View style={styles.fieldset}>
+                <Text style={styles.fieldLabel}>Desglose de horas</Text>
+
+                <Text style={styles.tramoLabel}>Horas en casa / recuperación</Text>
                 <TextInput
-                  style={[styles.input, styles.timeInput]}
-                  value={inicio2}
-                  onChangeText={setInicio2}
-                  keyboardType="numbers-and-punctuation"
-                  placeholder="14:00"
+                  style={styles.input}
+                  placeholder="p.ej. 2:00 o 2"
                   placeholderTextColor="#9ca3af"
+                  value={homeRecoveryInput}
+                  onChangeText={setHomeRecoveryInput}
+                  keyboardType="numbers-and-punctuation"
                 />
-                <Text style={styles.timeSep}>→</Text>
+
+                <Text style={[styles.tramoLabel, { marginTop: 10 }]}>Horas cliente / exterior</Text>
                 <TextInput
-                  style={[styles.input, styles.timeInput]}
-                  value={fin2}
-                  onChangeText={setFin2}
-                  keyboardType="numbers-and-punctuation"
-                  placeholder="17:00"
+                  style={styles.input}
+                  placeholder="p.ej. 6:30 o 6.5"
                   placeholderTextColor="#9ca3af"
+                  value={externalHoursInput}
+                  onChangeText={setExternalHoursInput}
+                  keyboardType="numbers-and-punctuation"
                 />
-              </View>
 
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total trabajado</Text>
-                <Text style={[styles.totalValue, !duracion && styles.totalInvalid]}>
-                  {duracion ?? 'Revisa los horarios'}
-                </Text>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total jornada</Text>
+                  <Text style={[styles.totalValue, !mixedDuration && styles.totalInvalid]}>
+                    {mixedDuration ?? 'Introduce al menos un tramo'}
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
 
+            {/* Dieta */}
             <View style={styles.fieldset}>
               <Text style={styles.fieldLabel}>Dieta</Text>
               <View style={styles.chipRow}>
@@ -374,6 +447,7 @@ export default function RegistroDetalleScreen() {
               </View>
             </View>
 
+            {/* Pernocta */}
             <View style={styles.fieldset}>
               <Text style={styles.fieldLabel}>Pernocta</Text>
               <View style={styles.chipRow}>
@@ -386,8 +460,9 @@ export default function RegistroDetalleScreen() {
               </View>
             </View>
 
+            {/* Horas extras */}
             <View style={styles.fieldset}>
-              <Text style={styles.fieldLabel}>Horas extras</Text>
+              <Text style={styles.fieldLabel}>Horas extras (+50 %)</Text>
               <TextInput
                 style={styles.input}
                 value={horasExtras}
@@ -398,14 +473,15 @@ export default function RegistroDetalleScreen() {
               />
             </View>
 
+            {/* Descripción */}
             <View style={styles.fieldset}>
-              <Text style={styles.fieldLabel}>Descripción (opcional)</Text>
+              <Text style={styles.fieldLabel}>Notas (opcional)</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={descripcion}
                 onChangeText={setDescripcion}
                 multiline
-                placeholder="Describe tareas o incidencias"
+                placeholder="Tareas, incidencias o notas"
                 placeholderTextColor="#9ca3af"
               />
             </View>

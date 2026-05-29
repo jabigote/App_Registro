@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
@@ -24,16 +24,23 @@ export default function RegistrosScreen() {
   const [query, setQuery] = useState('');
   const { toast, showToast, dismissToast } = useToast();
 
-  const filteredRegistros = query.trim()
-    ? registros.filter((r) => {
-        const q = query.toLowerCase();
-        return (
-          r.titulo.toLowerCase().includes(q) ||
-          (r.cliente?.toLowerCase().includes(q) ?? false) ||
-          r.descripcion.toLowerCase().includes(q)
-        );
-      })
-    : registros;
+  const filteredRegistros = useMemo(() => {
+    const base = query.trim()
+      ? registros.filter((r) => {
+          const q = query.toLowerCase();
+          return (
+            r.titulo.toLowerCase().includes(q) ||
+            (r.cliente?.toLowerCase().includes(q) ?? false) ||
+            r.descripcion.toLowerCase().includes(q)
+          );
+        })
+      : registros;
+    return [...base].sort((a, b) => {
+      const da = a.fecha ?? a.createdAt.slice(0, 10);
+      const db = b.fecha ?? b.createdAt.slice(0, 10);
+      return db.localeCompare(da);
+    });
+  }, [registros, query]);
 
   const handleEdit = (id: string) => {
     setOpenMenuId(null);
