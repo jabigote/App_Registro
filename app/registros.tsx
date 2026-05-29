@@ -1,18 +1,39 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
+import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
-import { useRegistro } from '@/contexts/registro-context';
+import { type Registro, useRegistro } from '@/contexts/registro-context';
+import { formatFecha } from '@/utils/date';
+
+function getCardDate(r: Registro): string {
+  const dateStr = r.fecha ?? r.createdAt.slice(0, 10);
+  return formatFecha(dateStr);
+}
+
+function getTimeDisplay(r: Registro): string {
+  return r.inicio ? `${r.inicio} — ${r.fin}` : r.duracion;
+}
 
 export default function RegistrosScreen() {
   const { registros, loading, deleteRegistro } = useRegistro();
   const router = useRouter();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const { toast, showToast, dismissToast } = useToast();
 
-  const toggleMenu = (id: string) =>
-    setOpenMenuId((prev) => (prev === id ? null : id));
+  const filteredRegistros = query.trim()
+    ? registros.filter((r) => {
+        const q = query.toLowerCase();
+        return (
+          r.titulo.toLowerCase().includes(q) ||
+          (r.cliente?.toLowerCase().includes(q) ?? false) ||
+          r.descripcion.toLowerCase().includes(q)
+        );
+      })
+    : registros;
 
   const handleEdit = (id: string) => {
     setOpenMenuId(null);
@@ -23,100 +44,146 @@ export default function RegistrosScreen() {
     setOpenMenuId(null);
     Alert.alert('Eliminar jornada', '¿Seguro que quieres eliminar esta jornada?', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: () => deleteRegistro(id) },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteRegistro(id);
+          showToast('Jornada eliminada');
+        },
+      },
     ]);
   };
+
+  const renderItem = ({ item: registro }: { item: Registro }) => {
+    const menuOpen = openMenuId === registro.id;
+    const dietaLabel =
+      registro.dieta === 'media' ? '½ Dieta' :
+      registro.dieta === 'completa' ? 'Dieta completa' : null;
+    const extras = registro.horasExtras && registro.horasExtras > 0
+      ? `${registro.horasExtras}h extra` : null;
+    const tags = [dietaLabel, registro.pernocta ? 'Pernocta' : null, extras].filter(Boolean);
+
+    return (
+      <Pressable
+        style={[styles.recordCard, menuOpen && styles.recordCardOpen]}
+        onPress={() => {
+          if (menuOpen) { setOpenMenuId(null); return; }
+          router.push({ pathname: '/registro-detalle', params: { id: registro.id } });
+        }}
+      >
+        <View style={styles.recordHeader}>
+          <View style={styles.recordTitleCol}>
+            <Text style={styles.recordTitle} numberOfLines={1}>{registro.titulo}</Text>
+            {registro.cliente
+              ? <Text style={styles.recordCliente} numberOfLines={1}>{registro.cliente}</Text>
+              : null}
+          </View>
+          <View style={styles.recordHeaderRight}>
+            <Text style={styles.recordDuration}>{registro.duracion}</Text>
+            <Pressable
+              onPress={() => setOpenMenuId((prev) => (prev === registro.id ? null : registro.id))}
+              style={[styles.menuBubble, menuOpen && styles.menuBubbleActive]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={[styles.menuBubbleText, menuOpen && styles.menuBubbleTextActive]}>···</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <Text style={styles.recordSubtitle}>
+          {getCardDate(registro)} · {getTimeDisplay(registro)}
+        </Text>
+
+        {tags.length > 0 && (
+          <View style={styles.tagRow}>
+            {tags.map((tag) => (
+              <View key={tag} style={styles.tag}>
+                <Text style={styles.tagText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {registro.descripcion
+          ? <Text style={styles.recordDescription}>{registro.descripcion}</Text>
+          : null}
+
+        {menuOpen && (
+          <View style={styles.cardMenu}>
+            <Pressable style={styles.cardMenuItem} onPress={() => handleEdit(registro.id)}>
+              <Text style={styles.cardMenuItemText}>Editar</Text>
+            </Pressable>
+            <View style={styles.cardMenuDivider} />
+            <Pressable style={styles.cardMenuItem} onPress={() => handleDelete(registro.id)}>
+              <Text style={[styles.cardMenuItemText, styles.cardMenuDestructive]}>Eliminar</Text>
+            </Pressable>
+          </View>
+        )}
+      </Pressable>
+    );
+  };
+
+  const listHeader = (
+    <View style={styles.listHeader}>
+      <Text style={styles.title}>Registros</Text>
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Buscar por tipo, cliente o notas…"
+          placeholderTextColor="#9ca3af"
+          value={query}
+          onChangeText={setQuery}
+          clearButtonMode="while-editing"
+          returnKeyType="search"
+        />
+      </View>
+      <Text style={styles.subtitle}>
+        {query.trim()
+          ? `${filteredRegistros.length} resultado${filteredRegistros.length !== 1 ? 's' : ''}`
+          : 'Toca una jornada para ver el detalle.'}
+      </Text>
+    </View>
+  );
+
+  const listEmpty = (
+    <View style={styles.emptyState}>
+      {query.trim() ? (
+        <>
+          <Text style={styles.emptyTitle}>Sin resultados</Text>
+          <Text style={styles.emptyText}>No hay jornadas que coincidan con "{query}".</Text>
+        </>
+      ) : (
+        <>
+          <Text style={styles.emptyTitle}>No hay jornadas guardadas</Text>
+          <Text style={styles.emptyText}>Tus jornadas aparecerán aquí cuando guardes un registro.</Text>
+        </>
+      )}
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <BrandLogo />
       </View>
-      <ScrollView
-        contentContainerStyle={styles.page}
-        showsVerticalScrollIndicator={false}
-        onScrollBeginDrag={() => setOpenMenuId(null)}
-      >
-        <Text style={styles.title}>Registros</Text>
-        <Text style={styles.subtitle}>Toca una jornada para ver el detalle.</Text>
-
-        {loading ? (
-          <Text style={styles.loadingText}>Cargando registros...</Text>
-        ) : registros.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No hay jornadas guardadas</Text>
-            <Text style={styles.emptyText}>Tus jornadas aparecerán aquí cuando guardes un registro.</Text>
-          </View>
-        ) : (
-          registros.map((registro) => {
-            const menuOpen = openMenuId === registro.id;
-            const dietaLabel =
-              registro.dieta === 'media' ? '½ Dieta' :
-              registro.dieta === 'completa' ? 'Dieta completa' : null;
-            const extras = registro.horasExtras && registro.horasExtras > 0
-              ? `${registro.horasExtras}h extra` : null;
-            const tags = [dietaLabel, registro.pernocta ? 'Pernocta' : null, extras].filter(Boolean);
-
-            return (
-              <Pressable
-                key={registro.id}
-                style={[styles.recordCard, menuOpen && styles.recordCardOpen]}
-                onPress={() => {
-                  if (menuOpen) { setOpenMenuId(null); return; }
-                  router.push({ pathname: '/registro-detalle', params: { id: registro.id } });
-                }}
-              >
-                <View style={styles.recordHeader}>
-                  <View style={styles.recordTitleCol}>
-                    <Text style={styles.recordTitle} numberOfLines={1}>{registro.titulo}</Text>
-                    {registro.cliente
-                      ? <Text style={styles.recordCliente} numberOfLines={1}>{registro.cliente}</Text>
-                      : null}
-                  </View>
-                  <View style={styles.recordHeaderRight}>
-                    <Text style={styles.recordDuration}>{registro.duracion}</Text>
-                    <Pressable
-                      onPress={() => toggleMenu(registro.id)}
-                      style={[styles.menuBubble, menuOpen && styles.menuBubbleActive]}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Text style={[styles.menuBubbleText, menuOpen && styles.menuBubbleTextActive]}>···</Text>
-                    </Pressable>
-                  </View>
-                </View>
-
-                <Text style={styles.recordSubtitle}>{`${registro.inicio} — ${registro.fin}`}</Text>
-
-                {tags.length > 0 && (
-                  <View style={styles.tagRow}>
-                    {tags.map((tag) => (
-                      <View key={tag} style={styles.tag}>
-                        <Text style={styles.tagText}>{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {registro.descripcion
-                  ? <Text style={styles.recordDescription}>{registro.descripcion}</Text>
-                  : null}
-
-                {menuOpen && (
-                  <View style={styles.cardMenu}>
-                    <Pressable style={styles.cardMenuItem} onPress={() => handleEdit(registro.id)}>
-                      <Text style={styles.cardMenuItemText}>Editar</Text>
-                    </Pressable>
-                    <View style={styles.cardMenuDivider} />
-                    <Pressable style={styles.cardMenuItem} onPress={() => handleDelete(registro.id)}>
-                      <Text style={[styles.cardMenuItemText, styles.cardMenuDestructive]}>Eliminar</Text>
-                    </Pressable>
-                  </View>
-                )}
-              </Pressable>
-            );
-          })
-        )}
-      </ScrollView>
+      {loading ? (
+        <View style={styles.centered}>
+          <Text style={styles.loadingText}>Cargando registros…</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredRegistros}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.page}
+          showsVerticalScrollIndicator={false}
+          onScrollBeginDrag={() => setOpenMenuId(null)}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={listEmpty}
+          renderItem={renderItem}
+        />
+      )}
+      <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
   );
 }
@@ -131,11 +198,25 @@ const styles = StyleSheet.create({
     elevation: 6,
     backgroundColor: Colors.light.background,
   },
-  page: { padding: 24, paddingTop: 16, gap: 14 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  page: { padding: 24, paddingTop: 16, gap: 14, paddingBottom: 40 },
+  listHeader: { gap: 10, marginBottom: 4 },
   title: { fontSize: 30, fontWeight: '800', color: Colors.brandDark, marginBottom: 2 },
-  subtitle: { fontSize: 14, color: '#6b7280', marginBottom: 4 },
+  searchContainer: {
+    backgroundColor: Colors.light.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  searchInput: {
+    padding: 14,
+    fontSize: 15,
+    color: Colors.brandDark,
+  },
+  subtitle: { fontSize: 14, color: '#6b7280' },
+  loadingText: { color: '#6b7280', fontSize: 15, textAlign: 'center' },
   emptyState: {
-    marginTop: 16,
+    marginTop: 4,
     backgroundColor: Colors.light.card,
     borderRadius: 24,
     padding: 28,
@@ -148,7 +229,6 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: Colors.brandDark, marginBottom: 8 },
   emptyText: { color: '#6b7280', fontSize: 15, textAlign: 'center', lineHeight: 22 },
-  loadingText: { color: '#6b7280', fontSize: 15, textAlign: 'center', marginTop: 14 },
   recordCard: {
     backgroundColor: Colors.light.card,
     borderRadius: 22,

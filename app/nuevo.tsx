@@ -3,8 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
+import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { type Dieta, useRegistro } from '@/contexts/registro-context';
+import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
 
 const TIPOS_JORNADA = [
   { value: 'Oficina',     label: 'Oficina' },
@@ -59,6 +61,11 @@ function needsCliente(tipo: string) {
 export default function NuevoRegistroScreen() {
   const router = useRouter();
   const { addRegistro } = useRegistro();
+  const { toast, showToast, dismissToast } = useToast();
+  const [saving, setSaving] = useState(false);
+
+  const [fecha, setFecha] = useState(todayDateStr);
+  const today = todayDateStr();
 
   const [tipoJornada, setTipoJornada]   = useState('');
   const [tipoOpen, setTipoOpen]         = useState(false);
@@ -98,7 +105,7 @@ export default function NuevoRegistroScreen() {
       lastEnd = e2;
     }
 
-    const extraMin      = Math.max(0, lastEnd - STANDARD_END_MIN);
+    const extraMin       = Math.max(0, lastEnd - STANDARD_END_MIN);
     const suggestedExtras = Math.round(extraMin / 60 * 10) / 10;
     return { duracion: fmtDuration(total), suggestedExtras };
   }, [isMixed, inicio1, fin1, inicio2, fin2]);
@@ -134,12 +141,14 @@ export default function NuevoRegistroScreen() {
     effectiveDuration !== null;
 
   const handleGuardar = async () => {
-    if (!canSave || !effectiveDuration) return;
+    if (!canSave || !effectiveDuration || saving) return;
+    setSaving(true);
 
     if (isMixed) {
       await addRegistro({
         titulo:   tipoJornada,
         cliente:  nombreCliente.trim() || undefined,
+        fecha,
         inicio:   '',
         fin:      '',
         duracion: effectiveDuration,
@@ -155,6 +164,7 @@ export default function NuevoRegistroScreen() {
       await addRegistro({
         titulo:   tipoJornada,
         cliente:  needsCliente(tipoJornada) ? nombreCliente.trim() : undefined,
+        fecha,
         inicio:   inicio1,
         fin1:     fin1,
         inicio2:  has2 ? inicio2 : undefined,
@@ -167,7 +177,8 @@ export default function NuevoRegistroScreen() {
       });
     }
 
-    router.push('/registros');
+    showToast('Jornada guardada');
+    setTimeout(() => router.push('/registros'), 1200);
   };
 
   return (
@@ -182,6 +193,24 @@ export default function NuevoRegistroScreen() {
       >
         <Text style={styles.title}>Registro de jornada</Text>
         <Text style={styles.subtitle}>Captura los detalles de tu jornada de trabajo.</Text>
+
+        {/* Fecha */}
+        <View style={styles.fieldset}>
+          <Text style={styles.fieldLabel}>Fecha de la jornada</Text>
+          <View style={styles.dateNav}>
+            <Pressable onPress={() => setFecha((f) => offsetDateStr(f, -1))} style={styles.dateNavBtn}>
+              <Text style={styles.dateNavBtnText}>‹</Text>
+            </Pressable>
+            <Text style={styles.dateNavLabel}>{formatFecha(fecha)}</Text>
+            <Pressable
+              onPress={() => setFecha((f) => offsetDateStr(f, 1))}
+              style={[styles.dateNavBtn, fecha >= today && styles.dateNavBtnDisabled]}
+              disabled={fecha >= today}
+            >
+              <Text style={[styles.dateNavBtnText, fecha >= today && styles.dateNavBtnTextDisabled]}>›</Text>
+            </Pressable>
+          </View>
+        </View>
 
         {/* Tipo de jornada */}
         <View style={styles.fieldset}>
@@ -387,13 +416,14 @@ export default function NuevoRegistroScreen() {
         )}
 
         <Pressable
-          style={[styles.buttonPrimary, !canSave && styles.buttonDisabled]}
+          style={[styles.buttonPrimary, (!canSave || saving) && styles.buttonDisabled]}
           onPress={handleGuardar}
-          disabled={!canSave}
+          disabled={!canSave || saving}
         >
-          <Text style={styles.buttonPrimaryText}>Guardar</Text>
+          <Text style={styles.buttonPrimaryText}>{saving ? 'Guardando…' : 'Guardar'}</Text>
         </Pressable>
       </ScrollView>
+      <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
   );
 }
@@ -411,6 +441,25 @@ const styles = StyleSheet.create({
   fieldset: { marginTop: 16, gap: 10 },
   fieldLabel: { fontSize: 14, fontWeight: '700', color: Colors.brand },
   tramoLabel: { fontSize: 13, fontWeight: '600', color: '#6b7280' },
+  dateNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.light.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  dateNavBtn: { padding: 12, borderRadius: 12 },
+  dateNavBtnDisabled: { opacity: 0.25 },
+  dateNavBtnText: { fontSize: 26, color: Colors.brand, fontWeight: '700', lineHeight: 30 },
+  dateNavBtnTextDisabled: { color: '#9ca3af' },
+  dateNavLabel: {
+    fontSize: 16, fontWeight: '700', color: Colors.brandDark,
+    flex: 1, textAlign: 'center',
+  },
   input: {
     backgroundColor: Colors.light.card, borderRadius: 16,
     padding: 16, fontSize: 16, color: Colors.brandDark,

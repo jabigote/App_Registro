@@ -1,7 +1,5 @@
 {
-  {
   "permissions": {
-    // Comandos que Claude puede ejecutar SIN pedir permiso cada vez
     "allow": [
       "Bash(npm run test:*)",
       "Bash(npm run lint)",
@@ -13,7 +11,6 @@
       "Bash(cat *)",
       "Bash(ls *)"
     ],
-    // Comandos que Claude NUNCA puede ejecutar
     "deny": [
       "Bash(rm -rf *)",
       "Bash(git push --force*)",
@@ -24,15 +21,10 @@
       "Read(**/credentials/**)"
     ]
   },
-
-  // No añadir firma "Co-authored-by: Claude" en cada commit
   "includeCoAuthoredBy": false,
-
-  // Variables de entorno disponibles para Claude en este proyecto
   "env": {
     "NODE_ENV": "development"
-  }
-}
+  },
   "enabledPlugins": {
     "expo@claude-plugins-official": true
   }

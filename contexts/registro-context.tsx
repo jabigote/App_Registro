@@ -8,6 +8,8 @@ export type Registro = {
   titulo: string;
   cliente?: string;
   descripcion: string;
+  /** Fecha de la jornada en formato YYYY-MM-DD. Puede diferir de createdAt si se registra al día siguiente. */
+  fecha?: string;
   inicio: string;
   fin1?: string;
   inicio2?: string;

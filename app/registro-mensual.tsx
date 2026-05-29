@@ -24,8 +24,13 @@ function durationToHours(duracion: string): number {
   return Math.round((hours + mins / 60) * 10) / 10;
 }
 
+function getRegistroDate(r: Registro): Date {
+  if (r.fecha) return new Date(`${r.fecha}T12:00:00`);
+  return new Date(r.createdAt);
+}
+
 function getDayFromRegistro(r: Registro): number {
-  return new Date(r.createdAt).getDate();
+  return getRegistroDate(r).getDate();
 }
 
 function totalHorasMes(registros: Registro[]): string {
@@ -47,7 +52,7 @@ export default function RegistroMensualScreen() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const registrosDelMes = registros.filter((r) => {
-    const d = new Date(r.createdAt);
+    const d = getRegistroDate(r);
     return d.getFullYear() === year && d.getMonth() === month;
   });
 
@@ -161,7 +166,7 @@ export default function RegistroMensualScreen() {
 
             {registrosDelMes
               .slice()
-              .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+              .sort((a, b) => getRegistroDate(a).getTime() - getRegistroDate(b).getTime())
               .map((r) => {
                 const day = getDayFromRegistro(r);
                 const dietaShort =

@@ -2,13 +2,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { type Dieta, useRegistro } from '@/contexts/registro-context';
+import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
 
 const TIPOS_JORNADA = [
-  { value: 'Casa', label: 'Casa (recuperación de horas)' },
-  { value: 'Cliente', label: 'Cliente' },
-  { value: 'Mixto', label: 'Mixto' },
+  { value: 'Casa',        label: 'Casa (recuperación de horas)' },
+  { value: 'Cliente',     label: 'Cliente' },
+  { value: 'Mixto',       label: 'Mixto' },
+  { value: 'Oficina',     label: 'Oficina' },
   { value: 'Teletrabajo', label: 'Teletrabajo' },
 ];
 
@@ -48,12 +51,17 @@ export default function RegistroDetalleScreen() {
   const { id, editMode: editParam } = useLocalSearchParams<{ id: string; editMode?: string }>();
   const router = useRouter();
   const { registros, updateRegistro, deleteRegistro } = useRegistro();
+  const { toast, showToast, dismissToast } = useToast();
 
   const [editMode, setEditMode] = useState(editParam === '1');
   const [menuVisible, setMenuVisible] = useState(false);
 
   const registro = registros.find((r) => r.id === id);
 
+  const today = todayDateStr();
+  const [fecha, setFecha] = useState(
+    registro?.fecha ?? registro?.createdAt?.slice(0, 10) ?? today
+  );
   const [tipoJornada, setTipoJornada] = useState(registro?.titulo ?? '');
   const [tipoOpen, setTipoOpen] = useState(false);
   const [nombreCliente, setNombreCliente] = useState(registro?.cliente ?? '');
@@ -134,6 +142,7 @@ export default function RegistroDetalleScreen() {
     await updateRegistro(id!, {
       titulo: tipoJornada,
       cliente: needsCliente(tipoJornada) ? nombreCliente.trim() : undefined,
+      fecha,
       inicio: inicio1,
       fin1: fin1,
       inicio2: has2 ? inicio2 : undefined,
@@ -145,11 +154,13 @@ export default function RegistroDetalleScreen() {
       descripcion: descripcion.trim(),
     });
     setEditMode(false);
+    showToast('Cambios guardados');
   };
 
   const dietaLabel = DIETA_LABEL[registro.dieta ?? 'ninguna'];
   const extras = registro.horasExtras && registro.horasExtras > 0
     ? `${registro.horasExtras}h extra` : null;
+  const registroFecha = registro.fecha ?? registro.createdAt.slice(0, 10);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -205,15 +216,16 @@ export default function RegistroDetalleScreen() {
           <>
             <Text style={styles.pageTitle}>{registro.titulo}</Text>
             <View style={styles.infoCard}>
+              <Row label="Fecha" value={formatFecha(registroFecha)} />
               {registro.cliente ? <Row label="Cliente" value={registro.cliente} /> : null}
               {registro.inicio2 ? (
                 <>
                   <Row label="Tramo 1" value={`${registro.inicio} — ${registro.fin1 ?? registro.fin}`} />
                   <Row label="Tramo 2" value={`${registro.inicio2} — ${registro.fin}`} />
                 </>
-              ) : (
+              ) : registro.inicio ? (
                 <Row label="Horario" value={`${registro.inicio} — ${registro.fin}`} />
-              )}
+              ) : null}
               <Row label="Duración" value={registro.duracion} />
               <Row label="Dieta" value={dietaLabel} />
               <Row label="Pernocta" value={registro.pernocta ? 'Sí' : 'No'} />
@@ -227,6 +239,24 @@ export default function RegistroDetalleScreen() {
         {editMode && (
           <>
             <Text style={styles.pageTitle}>Editar jornada</Text>
+
+            {/* Fecha */}
+            <View style={styles.fieldset}>
+              <Text style={styles.fieldLabel}>Fecha de la jornada</Text>
+              <View style={styles.dateNav}>
+                <Pressable onPress={() => setFecha((f) => offsetDateStr(f, -1))} style={styles.dateNavBtn}>
+                  <Text style={styles.dateNavBtnText}>‹</Text>
+                </Pressable>
+                <Text style={styles.dateNavLabel}>{formatFecha(fecha)}</Text>
+                <Pressable
+                  onPress={() => setFecha((f) => offsetDateStr(f, 1))}
+                  style={[styles.dateNavBtn, fecha >= today && styles.dateNavBtnDisabled]}
+                  disabled={fecha >= today}
+                >
+                  <Text style={[styles.dateNavBtnText, fecha >= today && styles.dateNavBtnTextDisabled]}>›</Text>
+                </Pressable>
+              </View>
+            </View>
 
             <View style={styles.fieldset}>
               <Text style={styles.fieldLabel}>Tipo de jornada</Text>
@@ -390,6 +420,7 @@ export default function RegistroDetalleScreen() {
           </>
         )}
       </ScrollView>
+      <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
   );
 }
@@ -447,7 +478,7 @@ const styles = StyleSheet.create({
   floatingMenuText: { fontSize: 15, fontWeight: '600', color: Colors.brandDark },
   floatingMenuDestructive: { color: '#dc2626' },
   floatingMenuDivider: { height: 1, backgroundColor: '#f3f4f6', marginHorizontal: 8 },
-  page: { padding: 24, paddingTop: 8, gap: 4 },
+  page: { padding: 24, paddingTop: 8, gap: 4, paddingBottom: 40 },
   pageTitle: { fontSize: 28, fontWeight: '800', color: Colors.brandDark, marginBottom: 12 },
   infoCard: {
     backgroundColor: Colors.light.card,
@@ -473,6 +504,25 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 14, fontWeight: '700', color: Colors.brand },
   required: { color: Colors.brand },
   tramoLabel: { fontSize: 13, fontWeight: '600', color: '#6b7280' },
+  dateNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.light.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  dateNavBtn: { padding: 12, borderRadius: 12 },
+  dateNavBtnDisabled: { opacity: 0.25 },
+  dateNavBtnText: { fontSize: 26, color: Colors.brand, fontWeight: '700', lineHeight: 30 },
+  dateNavBtnTextDisabled: { color: '#9ca3af' },
+  dateNavLabel: {
+    fontSize: 16, fontWeight: '700', color: Colors.brandDark,
+    flex: 1, textAlign: 'center',
+  },
   input: {
     backgroundColor: Colors.light.card,
     borderRadius: 16,
