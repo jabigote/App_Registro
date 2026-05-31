@@ -1,32 +1,32 @@
 @AGENTS.md
 
-# [Nombre del proyecto]
+# mi-app-ios — Contexto Claude
 
-## Comandos esenciales
-- Build: `npm run build`
-- Tests: `npm run test` (preferir tests individuales: `npm run test -- -t "nombre"`)
-- Lint: `npm run lint`
-- Dev: `npm run dev`
+## Comandos reales del proyecto
 
-## Stack
-- Node 20, TypeScript 5, React 18, Vite
-- Tests: Vitest + Testing Library
-- Estilos: Tailwind CSS
+```powershell
+npx.cmd expo start          # arrancar (Expo Go en iPhone)
+npx.cmd expo start --tunnel # con túnel
+npm.cmd run lint            # ESLint
+```
 
-## Estilo de código
-- ES modules (import/export), no CommonJS
-- Destructuring en imports cuando sea posible
-- Funciones async/await, no .then()
-- Tipos explícitos en TypeScript (no `any`)
+No existen scripts `build`, `test` ni `dev`. No hay Vite, Tailwind ni Vitest.
 
-## Convenciones del proyecto
-- Ramas: `feature/`, `fix/`, `chore/`
-- Commits en inglés, formato conventional commits
-- Tests obligatorios para nueva funcionalidad
+## Stack real
+
+- Expo ~54 / React Native 0.81 / React 19 / TypeScript ~5.9
+- Expo Router ~6 (sin bottom tabs, navegación Stack pura)
+- Estilos con `StyleSheet.create` (React Native nativo)
+- AsyncStorage para toda la persistencia (sin base de datos ni backend)
 
 ## Compactación de contexto
-Cuando compactes, preserva siempre: lista de archivos modificados,
-comandos de test ejecutados y decisiones arquitectónicas tomadas.
 
-## Directorios prohibidos
-No leer `legacy/` ni `archive/` salvo que se indique explícitamente.
+Preservar siempre: archivos modificados, claves de AsyncStorage usadas, decisiones de UX o estructura de tipos.
+
+## Directorios que NO leer salvo indicación
+
+- `node_modules/`
+- `.expo/`
+- `archivos/` (imágenes de referencia, logos)
+- `assets/templates/` (binario Excel)
+- `scripts/reset-project.js` (script de scaffold de Expo, no tocar)

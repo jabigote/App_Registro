@@ -1,82 +1,64 @@
 # ── Dependencias y paquetes ───────────────────────────────────────────────
 node_modules/
-.pnpm-store/
-vendor/
-venv/
-.venv/
-__pycache__/
-*.pyc
-*.pyo
+.expo/
 
 # ── Build y compilación ───────────────────────────────────────────────────
 dist/
 build/
-out/
-.next/
-.nuxt/
-.output/
-*.min.js
-*.min.css
-*.map
+web-build/
 
 # ── Control de versiones ──────────────────────────────────────────────────
 .git/
 
-# ── Archivos de bloqueo (grandes y sin utilidad para el agente) ───────────
+# ── Archivos de bloqueo ───────────────────────────────────────────────────
 package-lock.json
 yarn.lock
-pnpm-lock.yaml
-Pipfile.lock
-poetry.lock
-composer.lock
 
-# ── Logs y bases de datos ─────────────────────────────────────────────────
+# ── Logs ──────────────────────────────────────────────────────────────────
 *.log
 logs/
-*.db
-*.sqlite
-*.sqlite3
 
-# ── Secretos y credenciales (SIEMPRE ignorar) ────────────────────────────
+# ── Secretos y credenciales ───────────────────────────────────────────────
 .env
 .env.*
 *.key
 *.pem
 *.p12
 *.cert
-credentials/
-secrets/
+# Claves SSH accidentales en el root
+ssh -T git@github.com
+ssh -T git@github.com.pub
+SHA256
 
-# ── Archivos multimedia y binarios ────────────────────────────────────────
+# ── Binarios y assets pesados ─────────────────────────────────────────────
+# Imágenes (en assets/images y archivos/)
 *.png
 *.jpg
 *.jpeg
 *.gif
-*.svg
 *.ico
-*.mp4
-*.mp3
-*.pdf
-*.zip
-*.tar.gz
+*.webp
+*.svg
 *.woff
 *.woff2
 *.ttf
 *.eot
+# Archivos Excel (binarios, no útiles para el agente)
+*.xlsx
+*.xls
+# Directorio de imágenes de referencia (logos, fotos de marca)
+archivos/
+# Templates Excel (binario)
+assets/templates/
 
 # ── Caché y datos temporales ──────────────────────────────────────────────
 .cache/
 tmp/
 temp/
-.temp/
 coverage/
-.nyc_output/
-.turbo/
 
 # ── IDEs y editores ───────────────────────────────────────────────────────
 .idea/
-*.suo
-*.user
 
 # ── Sistema operativo ─────────────────────────────────────────────────────
 .DS_Store
