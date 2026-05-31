@@ -84,8 +84,17 @@ const MESES_ES = [
 const TARGET_COLS = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'] as const;
 type TargetCol = (typeof TARGET_COLS)[number];
 
-/** Columnas cuyo valor se almacena como fracción de día (horas / 24) en Excel. */
-const HOUR_COLS = new Set<TargetCol>(['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']);
+/**
+ * Columnas C–I: el template usa formatos de número decimal (ej. "0.00", "#,##0.0").
+ * Se escribe el valor en horas directamente (8.5 → aparece "8.50" o "8.5" según el formato).
+ */
+const PLAIN_HOUR_COLS = new Set<TargetCol>(['C', 'D', 'E', 'F', 'G', 'H', 'I']);
+
+/**
+ * Columna J: el template usa formato de tiempo "h:mm" (numFmtId=166).
+ * Se escribe el valor como fracción de día (horas / 24) para que Excel lo muestre como "8:30".
+ */
+const TIME_HOUR_COLS = new Set<TargetCol>(['J']);
 
 /** Columna de texto. */
 const TEXT_COL: TargetCol = 'P';
@@ -370,10 +379,11 @@ function processDataRow(
   }
 
   for (const col of TARGET_COLS) {
-    const ref   = `${col}${rowNum}`;
-    const value = colValues[col];
-    const isHour = HOUR_COLS.has(col);
-    const isText = col === TEXT_COL;
+    const ref          = `${col}${rowNum}`;
+    const value        = colValues[col];
+    const isPlainHour  = PLAIN_HOUR_COLS.has(col);
+    const isTimeHour   = TIME_HOUR_COLS.has(col);
+    const isText       = col === TEXT_COL;
 
     // Busca celda existente (con o sin cierre propio)
     const cellRegex = new RegExp(
@@ -389,7 +399,13 @@ function processDataRow(
     if (value !== undefined && value !== null) {
       if (isText && typeof value === 'string') {
         newCell = buildStrCell(ref, style, value);
-      } else if (isHour && typeof value === 'number') {
+      } else if (isPlainHour && typeof value === 'number') {
+        // Escribe horas decimales directamente (el template usa formato "#,##0.0" o "0.00")
+        newCell = value > 0
+          ? buildNumCell(ref, style, value)
+          : buildEmptyCell(ref, style);
+      } else if (isTimeHour && typeof value === 'number') {
+        // Columna J: formato "h:mm" requiere fracción de día (horas / 24)
         const excelTime = hoursToExcelTime(value);
         newCell = excelTime !== undefined
           ? buildNumCell(ref, style, excelTime)
@@ -524,15 +540,30 @@ export async function generateMonthlyReportFromTemplate(
   if (!sheetFile) throw new Error(`Archivo de hoja no encontrado en ZIP: ${sheetPath}`);
   let sheetXml = await sheetFile.async('string');
 
-  // 4. Pre-escanear estilos de cada columna en el rango de datos (filas 14–44)
-  //    para usarlos como fallback en celdas que no existan aún.
+  // 4. Pre-escanear estilos de columna iterando por filas (más robusto que búsqueda
+  //    por referencia exacta, ya que algunas celdas vacías no emiten <c> en el XML).
   const colStyles: Record<string, string> = {};
-  for (const col of TARGET_COLS) {
-    for (let row = 14; row <= 44; row++) {
-      const ref = `${col}${row}`;
-      const m   = new RegExp(`<c\\b[^>]*r="${ref}"[^>]*\\bs="([^"]+)"`).exec(sheetXml);
-      if (m) { colStyles[col] = ` s="${m[1]}"`; break; }
+  const rowScanPat = /<row\b[^>]*\sr="(\d+)"[^>]*>([\s\S]*?)<\/row>/g;
+  let rowScanM: RegExpExecArray | null;
+  while ((rowScanM = rowScanPat.exec(sheetXml)) !== null) {
+    const rowNum = parseInt(rowScanM[1], 10);
+    if (rowNum < 14 || rowNum > 44) continue;
+    const rowBody = rowScanM[2];
+    // Extraer celdas de esta fila
+    const cellPat = /<c\b([^>]*)(?:\/|>[\s\S]*?<\/c>)/g;
+    let cellM: RegExpExecArray | null;
+    while ((cellM = cellPat.exec(rowBody)) !== null) {
+      const attrs  = cellM[1];
+      const refM   = attrs.match(/\br="([A-Z]+)\d+"/);
+      const styleM = attrs.match(/\bs="([^"]+)"/);
+      if (refM && styleM) {
+        const col = refM[1] as TargetCol;
+        if (TARGET_COLS.includes(col) && !colStyles[col]) {
+          colStyles[col] = ` s="${styleM[1]}"`;
+        }
+      }
     }
+    if (TARGET_COLS.every((c) => colStyles[c])) break;
   }
 
   // 5. Cabecera: mes/año y nombre de empleado

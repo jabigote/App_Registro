@@ -96,8 +96,8 @@ export default function RegistroMensualScreen() {
         normalHours:       reg.titulo !== 'Mixto' ? reg.duracion : undefined,
         homeRecoveryHours: reg.homeRecoveryHours,
         externalHours:     reg.externalHours,
-        // horasExtras se mapea a overtime50 (+50 %)
-        overtime50: reg.horasExtras && reg.horasExtras > 0 ? reg.horasExtras : undefined,
+        // horasExtras se mapea a overtime25 (+25 %)
+        overtime25: reg.horasExtras && reg.horasExtras > 0 ? reg.horasExtras : undefined,
         halfDiet:  reg.dieta === 'media'    ? 1 : undefined,
         fullDiet:  reg.dieta === 'completa' ? 1 : undefined,
         overnight: reg.pernocta ? 1 : undefined,
