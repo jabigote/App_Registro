@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
+import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { type Registro, useRegistro } from '@/contexts/registro-context';
@@ -21,7 +22,8 @@ function durationToHours(duracion: string): number {
   const m = duracion.match(/(\d+)m/);
   const hours = h ? parseInt(h[1]) : 0;
   const mins = m ? parseInt(m[1]) : 0;
-  return Math.round((hours + mins / 60) * 10) / 10;
+  // Redondea a la media hora más cercana: 8h20m → 8.5, 8h10m → 8, 9h → 9
+  return Math.round((hours + mins / 60) * 2) / 2;
 }
 
 function getRegistroDate(r: Registro): Date {
@@ -44,6 +46,8 @@ function totalHorasMes(registros: Registro[]): string {
 export default function RegistroMensualScreen() {
   const { registros } = useRegistro();
   const { usuario } = useAuth();
+  const { toast, showToast, dismissToast } = useToast();
+  const [exporting, setExporting] = useState(false);
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -82,6 +86,8 @@ export default function RegistroMensualScreen() {
   };
 
   const handleExportar = async () => {
+    if (exporting) return;
+    setExporting(true);
     try {
       const records: MonthlyDayRecord[] = registrosDelMes.map((reg) => ({
         day:          getDayFromRegistro(reg),
@@ -92,8 +98,8 @@ export default function RegistroMensualScreen() {
         externalHours:     reg.externalHours,
         // horasExtras se mapea a overtime50 (+50 %)
         overtime50: reg.horasExtras && reg.horasExtras > 0 ? reg.horasExtras : undefined,
-        halfDiet:  reg.dieta === 'media'    ? 0.5 : undefined,
-        fullDiet:  reg.dieta === 'completa' ? 1   : undefined,
+        halfDiet:  reg.dieta === 'media'    ? 1 : undefined,
+        fullDiet:  reg.dieta === 'completa' ? 1 : undefined,
         overnight: reg.pernocta ? 1 : undefined,
         clientName: reg.cliente || undefined,
         notes:      reg.descripcion || undefined,
@@ -108,13 +114,15 @@ export default function RegistroMensualScreen() {
     } catch (e) {
       Alert.alert('Error', 'No se pudo generar el reporte. Inténtalo de nuevo.');
       console.warn('Error generando Excel:', e);
+    } finally {
+      setExporting(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo />
+        <BrandLogo onFichajeRapido={showToast} />
       </View>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Registro mensual</Text>
@@ -205,14 +213,21 @@ export default function RegistroMensualScreen() {
         )}
 
         {/* Botón exportar */}
-        <Pressable style={styles.exportBtn} onPress={handleExportar}>
-          <Text style={styles.exportBtnText}>Exportar / Compartir Excel</Text>
+        <Pressable
+          style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
+          onPress={handleExportar}
+          disabled={exporting}
+        >
+          <Text style={styles.exportBtnText}>
+            {exporting ? 'Generando…' : 'Exportar / Compartir Excel'}
+          </Text>
         </Pressable>
 
         <Text style={styles.exportHint}>
           Se abrirá el menú de compartir de iOS para enviar por correo, guardar en Archivos o cualquier otra opción.
         </Text>
       </ScrollView>
+      <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
   );
 }
@@ -311,6 +326,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
   },
+  exportBtnDisabled: { backgroundColor: '#9ca3af' },
   exportBtnText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
   exportHint: { fontSize: 12, color: '#9ca3af', textAlign: 'center', lineHeight: 18 },
 });

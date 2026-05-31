@@ -158,7 +158,7 @@ export default function RegistrosScreen() {
       {query.trim() ? (
         <>
           <Text style={styles.emptyTitle}>Sin resultados</Text>
-          <Text style={styles.emptyText}>No hay jornadas que coincidan con "{query}".</Text>
+          <Text style={styles.emptyText}>No hay jornadas que coincidan con &quot;{query}&quot;.</Text>
         </>
       ) : (
         <>
@@ -172,7 +172,7 @@ export default function RegistrosScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo />
+        <BrandLogo onFichajeRapido={showToast} />
       </View>
       {loading ? (
         <View style={styles.centered}>

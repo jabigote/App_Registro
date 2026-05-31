@@ -1,6 +1,7 @@
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
+import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useRegistro } from '@/contexts/registro-context';
@@ -8,11 +9,12 @@ import { useRegistro } from '@/contexts/registro-context';
 export default function AjustesScreen() {
   const { registros } = useRegistro();
   const { usuario, logout } = useAuth();
+  const { toast, showToast, dismissToast } = useToast();
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo />
+        <BrandLogo onFichajeRapido={showToast} />
       </View>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Ajustes</Text>
@@ -47,6 +49,7 @@ export default function AjustesScreen() {
           </Pressable>
         </View>
       </ScrollView>
+      <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
   );
 }

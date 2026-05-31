@@ -11,7 +11,11 @@ import { roundToNearest30 } from '@/utils/time';
 const brandMark = require('../assets/images/salvagnini-mark.png');
 const brandLogo = require('../assets/images/salvagnini-logo.webp');
 
-export function BrandLogo() {
+interface BrandLogoProps {
+  onFichajeRapido?: (message: string) => void;
+}
+
+export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
   const router = useRouter();
   const { quickEntry, saveQuickEntry } = useRegistro();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -27,6 +31,7 @@ export function BrandLogo() {
     setMenuVisible(false);
     const hora = roundToNearest30(new Date());
     await saveQuickEntry({ fecha: todayDateStr(), inicio: hora });
+    onFichajeRapido?.(`Entrada registrada: ${hora}`);
   };
 
   const handleSalida = () => {
@@ -46,6 +51,7 @@ export function BrandLogo() {
   const handleCancelarEntrada = async () => {
     setMenuVisible(false);
     await saveQuickEntry(null);
+    onFichajeRapido?.('Entrada cancelada');
   };
 
   return (

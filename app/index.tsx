@@ -50,7 +50,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo />
+        <BrandLogo onFichajeRapido={showToast} />
       </View>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Panel de control</Text>
@@ -111,7 +111,9 @@ export default function HomeScreen() {
               : `${total} jornada${total === 1 ? '' : 's'} guardada${total === 1 ? '' : 's'}`}
           </Text>
           {latest ? (
-            <Text style={styles.stateNote}>{`${latest.titulo} · ${latest.inicio}–${latest.fin} · ${latest.duracion}`}</Text>
+            <Text style={styles.stateNote}>
+              {`${latest.titulo} · ${latest.inicio ? `${latest.inicio}–${latest.fin} · ` : ''}${latest.duracion}`}
+            </Text>
           ) : (
             <Text style={styles.stateNote}>
               Comienza a guardar tus jornadas de trabajo para tener un histórico personal.
@@ -139,7 +141,7 @@ export default function HomeScreen() {
                   {r.cliente
                     ? <Text style={styles.recentCardMeta} numberOfLines={1}>{r.cliente}</Text>
                     : null}
-                  <Text style={styles.recentCardMeta}>{`${r.inicio} — ${r.fin}`}</Text>
+                  {r.inicio ? <Text style={styles.recentCardMeta}>{`${r.inicio} — ${r.fin}`}</Text> : null}
                 </View>
                 <Text style={styles.recentCardDuracion}>{r.duracion}</Text>
               </Pressable>

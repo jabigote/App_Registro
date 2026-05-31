@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
+import { ClienteSearchInput } from '@/components/cliente-search-input';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { type Dieta, useRegistro } from '@/contexts/registro-context';
@@ -158,7 +159,7 @@ export default function NuevoRegistroScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo />
+        <BrandLogo onFichajeRapido={showToast} />
       </View>
       <ScrollView
         contentContainerStyle={styles.page}
@@ -223,14 +224,7 @@ export default function NuevoRegistroScreen() {
             <Text style={styles.fieldLabel}>
               Cliente <Text style={styles.required}>*</Text>
             </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre de la empresa o contacto"
-              placeholderTextColor="#9ca3af"
-              value={nombreCliente}
-              onChangeText={setNombreCliente}
-              autoCapitalize="words"
-            />
+            <ClienteSearchInput value={nombreCliente} onChangeText={setNombreCliente} />
           </View>
         )}
 

@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { ClienteSearchInput } from '@/components/cliente-search-input';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { type Dieta, useRegistro } from '@/contexts/registro-context';
@@ -328,14 +329,7 @@ export default function RegistroDetalleScreen() {
                 <Text style={styles.fieldLabel}>
                   Cliente <Text style={styles.required}>*</Text>
                 </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Nombre de la empresa o contacto"
-                  placeholderTextColor="#9ca3af"
-                  value={nombreCliente}
-                  onChangeText={setNombreCliente}
-                  autoCapitalize="words"
-                />
+                <ClienteSearchInput value={nombreCliente} onChangeText={setNombreCliente} />
               </View>
             )}
 
@@ -466,7 +460,7 @@ export default function RegistroDetalleScreen() {
               <TextInput
                 style={styles.input}
                 value={horasExtras}
-                onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.]/g, ''))}
+                onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.,]/g, ''))}
                 keyboardType="decimal-pad"
                 placeholder="0"
                 placeholderTextColor="#9ca3af"
