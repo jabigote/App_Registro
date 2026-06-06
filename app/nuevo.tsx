@@ -33,7 +33,6 @@ export default function NuevoRegistroScreen() {
 
   const {
     tipoJornada, setTipoJornada,
-    tipoOpen, setTipoOpen,
     nombreCliente, setNombreCliente,
     inicio1, setInicio1,
     fin1, setFin1,
