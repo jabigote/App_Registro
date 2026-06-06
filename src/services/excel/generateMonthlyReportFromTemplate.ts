@@ -608,10 +608,12 @@ export async function generateMonthlyReportFromTemplate(
   // 8. El ZIP final sale de JSZip, conservando todos los archivos originales
   zip.file(sheetPath, sheetXml);
 
+  // STORE (sin compresión) es esencial en React Native / Hermes: DEFLATE bloquea
+  // el hilo JS durante 30-60 s en xlsx con imágenes y nunca termina visualmente.
+  // Excel, Numbers y cualquier lector moderno abren xlsx sin comprimir sin problemas.
   const outputBase64 = await zip.generateAsync({
-    type:               'base64',
-    compression:        'DEFLATE',
-    compressionOptions: { level: 6 },
+    type:        'base64',
+    compression: 'STORE',
   });
 
   // 8. Guardar en documentDirectory

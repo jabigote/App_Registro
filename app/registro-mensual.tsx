@@ -19,10 +19,40 @@ const MESES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
+const TIPO_COLORS: Record<string, string> = {
+  Oficina:     '#3b82f6',
+  Cliente:     '#f59e0b',
+  Teletrabajo: '#8b5cf6',
+  Mixto:       '#14b8a6',
+  Casa:        '#22c55e',
+};
+
 function durationToMinutes(duracion: string): number {
   const h = duracion.match(/(\d+)h/);
   const m = duracion.match(/(\d+)m/);
   return (h ? parseInt(h[1]) : 0) * 60 + (m ? parseInt(m[1]) : 0);
+}
+
+function fmtMins(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function getWeekStart(dateStr: string): string {
+  const d = new Date(`${dateStr}T12:00:00`);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatWeekRange(weekStart: string): string {
+  const s = new Date(`${weekStart}T12:00:00`);
+  const e = new Date(s);
+  e.setDate(s.getDate() + 6);
+  const fmt = (d: Date) => `${d.getDate()}/${d.getMonth() + 1}`;
+  return `${fmt(s)}–${fmt(e)}`;
 }
 
 function getRegistroDate(r: Registro): Date {
@@ -101,6 +131,33 @@ export default function RegistroMensualScreen() {
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
 
   const [showPreview, setShowPreview] = useState(false);
+  const [showChart, setShowChart] = useState(true);
+  const [showWeekly, setShowWeekly] = useState(false);
+
+  const horasPorTipo = useMemo(() => {
+    const acc: Record<string, number> = {};
+    registrosDelMes.forEach((r) => {
+      acc[r.titulo] = (acc[r.titulo] ?? 0) + durationToMinutes(r.duracion);
+    });
+    return Object.entries(acc).sort(([, a], [, b]) => b - a);
+  }, [registrosDelMes]);
+
+  const maxMinsTipo = useMemo(
+    () => Math.max(...horasPorTipo.map(([, m]) => m), 1),
+    [horasPorTipo],
+  );
+
+  const semanasData = useMemo(() => {
+    const map: Record<string, { mins: number; count: number }> = {};
+    registrosDelMes.forEach((r) => {
+      const fecha = r.fecha ?? r.createdAt.slice(0, 10);
+      const key = getWeekStart(fecha);
+      if (!map[key]) map[key] = { mins: 0, count: 0 };
+      map[key].mins += durationToMinutes(r.duracion);
+      map[key].count++;
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  }, [registrosDelMes]);
 
   const prevMonth = () => {
     if (month === 0) { setMonth(11); setYear((y) => y - 1); }
@@ -217,6 +274,58 @@ export default function RegistroMensualScreen() {
             <Text style={styles.summaryLabel}>Pernoctas</Text>
           </View>
         </View>
+
+        {/* Gráfica distribución por tipo */}
+        {registrosDelMes.length > 0 && (
+          <View style={styles.analyticCard}>
+            <Pressable style={styles.analyticHeader} onPress={() => setShowChart((v) => !v)}>
+              <Text style={styles.analyticTitle}>Distribución por tipo</Text>
+              <Text style={styles.analyticToggle}>{showChart ? '▲' : '▼'}</Text>
+            </Pressable>
+            {showChart && (
+              <View style={styles.chartBody}>
+                {horasPorTipo.map(([tipo, mins]) => (
+                  <View key={tipo} style={styles.barRow}>
+                    <Text style={styles.barLabel}>{tipo}</Text>
+                    <View style={styles.barTrack}>
+                      <View
+                        style={[
+                          styles.barFill,
+                          {
+                            width:           `${(mins / maxMinsTipo) * 100}%`,
+                            backgroundColor: TIPO_COLORS[tipo] ?? Colors.brand,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.barValue}>{fmtMins(mins)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Resumen semanal */}
+        {registrosDelMes.length > 0 && (
+          <View style={styles.analyticCard}>
+            <Pressable style={styles.analyticHeader} onPress={() => setShowWeekly((v) => !v)}>
+              <Text style={styles.analyticTitle}>Por semanas</Text>
+              <Text style={styles.analyticToggle}>{showWeekly ? '▲' : '▼'}</Text>
+            </Pressable>
+            {showWeekly && (
+              <View style={styles.weekBody}>
+                {semanasData.map(([weekStart, { mins, count }]) => (
+                  <View key={weekStart} style={styles.weekRow}>
+                    <Text style={styles.weekRange}>{formatWeekRange(weekStart)}</Text>
+                    <Text style={styles.weekCount}>{count} jorn.</Text>
+                    <Text style={styles.weekTotal}>{fmtMins(mins)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Tabla de jornadas */}
         {registrosDelMes.length === 0 ? (
@@ -440,6 +549,35 @@ function makeStyles(C: ThemeColors) {
     tableTipoText:      { fontSize: 13, fontWeight: '600', color: C.text },
     tableClienteText:   { fontSize: 11, color: C.textMuted, marginTop: 1 },
     tableCellValueText: { fontSize: 13, color: C.textSecondary, fontWeight: '600' },
+
+    // Análisis: gráfica y semanas
+    analyticCard: {
+      backgroundColor: C.card, borderRadius: 18,
+      borderWidth: 1, borderColor: C.border, overflow: 'hidden',
+    },
+    analyticHeader: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingHorizontal: 16, paddingVertical: 14,
+    },
+    analyticTitle: { fontSize: 14, fontWeight: '700', color: C.text },
+    analyticToggle: { fontSize: 11, color: C.textFaint },
+    chartBody: { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
+    barRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    barLabel: { fontSize: 12, fontWeight: '600', color: C.textSecondary, width: 86 },
+    barTrack: {
+      flex: 1, height: 10, backgroundColor: C.separator,
+      borderRadius: 5, overflow: 'hidden',
+    },
+    barFill: { height: '100%', borderRadius: 5 },
+    barValue: { fontSize: 12, fontWeight: '700', color: C.text, width: 52, textAlign: 'right' },
+    weekBody: { paddingHorizontal: 16, paddingBottom: 10 },
+    weekRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.separator,
+    },
+    weekRange: { fontSize: 13, color: C.text, fontWeight: '600', flex: 1 },
+    weekCount: { fontSize: 12, color: C.textMuted, width: 52, textAlign: 'center' },
+    weekTotal: { fontSize: 13, fontWeight: '700', color: Colors.brand, width: 60, textAlign: 'right' },
 
     exportBtn: {
       backgroundColor: Colors.brand, borderRadius: 16,

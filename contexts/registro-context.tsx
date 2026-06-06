@@ -1,9 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
+import { cancelFichajeReminder, scheduleFichajeReminder } from '@/utils/notifications';
+
 export type Dieta = 'ninguna' | 'media' | 'completa';
 
-export type QuickEntry = { fecha: string; inicio: string; fin?: string };
+export type QuickEntry = {
+  fecha:          string;
+  inicio:         string;
+  fin?:           string;
+  notas?:         string;
+  notificationId?: string;
+};
 
 export type Registro = {
   id: string;
@@ -89,10 +97,27 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const saveQuickEntry = async (entry: QuickEntry | null) => {
-    setQuickEntryState(entry);
+    const prevNotifId = quickEntry?.notificationId;
+
+    // Cancelar aviso cuando se borra la entrada, se registra salida o es una nueva entrada distinta
+    const shouldCancel = !!prevNotifId && (
+      !entry ||
+      entry.fin !== undefined ||
+      entry.inicio !== quickEntry?.inicio
+    );
+    if (shouldCancel && prevNotifId) cancelFichajeReminder(prevNotifId);
+
+    // Programar aviso para una nueva entrada (sin fin ni notificación previa)
+    let finalEntry = entry;
+    if (entry && !entry.fin && !entry.notificationId) {
+      const notifId = await scheduleFichajeReminder(entry.inicio);
+      if (notifId) finalEntry = { ...entry, notificationId: notifId };
+    }
+
+    setQuickEntryState(finalEntry);
     try {
-      if (entry) {
-        await AsyncStorage.setItem(QUICK_KEY, JSON.stringify(entry));
+      if (finalEntry) {
+        await AsyncStorage.setItem(QUICK_KEY, JSON.stringify(finalEntry));
       } else {
         await AsyncStorage.removeItem(QUICK_KEY);
       }

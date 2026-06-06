@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text } from 'react-native';
 
 import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type ToastEntry = { message: string; type: 'success' | 'error'; key: number };
 
@@ -26,6 +27,7 @@ type ToastProps = {
 
 export function Toast({ toast, onDismiss }: ToastProps) {
   const opacity = useRef(new Animated.Value(0)).current;
+  const isDark = useColorScheme() === 'dark';
 
   useEffect(() => {
     if (!toast) return;
@@ -42,7 +44,16 @@ export function Toast({ toast, onDismiss }: ToastProps) {
   if (!toast) return null;
 
   return (
-    <Animated.View style={[styles.container, toast.type === 'error' && styles.containerError, { opacity }]}>
+    <Animated.View
+      style={[
+        styles.container,
+        isDark && styles.containerDark,
+        toast.type === 'error' && styles.containerError,
+        { opacity },
+      ]}
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+    >
       <Text style={styles.text}>{toast.message}</Text>
     </Animated.View>
   );
@@ -66,6 +77,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 20,
   },
+  // En dark mode, el fondo claro (#1F1F21 sobre #0F1216) tiene poco contraste;
+  // un gris azulado más elevado da separación visual clara sin romper el estilo.
+  containerDark: { backgroundColor: '#2e3446' },
   containerError: { backgroundColor: '#dc2626' },
   text: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
 });

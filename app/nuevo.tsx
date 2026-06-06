@@ -14,8 +14,8 @@ import { parseHoursInput } from '@/utils/time';
 
 export default function NuevoRegistroScreen() {
   const router = useRouter();
-  const { inicioPreset, finPreset, fechaPreset } =
-    useLocalSearchParams<{ inicioPreset?: string; finPreset?: string; fechaPreset?: string }>();
+  const { inicioPreset, finPreset, fechaPreset, descripcionPreset } =
+    useLocalSearchParams<{ inicioPreset?: string; finPreset?: string; fechaPreset?: string; descripcionPreset?: string }>();
   const { addRegistro, saveQuickEntry } = useRegistro();
   const { toast, showToast, dismissToast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -50,11 +50,12 @@ export default function NuevoRegistroScreen() {
     effectiveDuration,
     canSave,
   } = useJornadaForm({
-    initialInicio1: inicioPreset ?? '08:00',
-    initialFin1:    finPreset    ?? '13:00',
-    initialInicio2: inicioPreset ? '' : '14:00',
-    initialFin2:    inicioPreset ? '' : '17:00',
-    resetOnTipoChange: true,
+    initialInicio1:     inicioPreset      ?? '08:00',
+    initialFin1:        finPreset         ?? '13:00',
+    initialInicio2:     inicioPreset ? '' : '14:00',
+    initialFin2:        inicioPreset ? '' : '17:00',
+    initialDescripcion: descripcionPreset ?? '',
+    resetOnTipoChange:  true,
   });
 
   const handleGuardar = async () => {

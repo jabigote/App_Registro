@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
@@ -8,6 +8,8 @@ import { Colors } from '@/constants/theme';
 import { type Registro, useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import { formatFecha } from '@/utils/date';
+
+const TIPOS_FILTRO = ['Oficina', 'Cliente', 'Teletrabajo', 'Mixto', 'Casa'];
 
 function getCardDate(r: Registro): string {
   const dateStr = r.fecha ?? r.createdAt.slice(0, 10);
@@ -23,27 +25,29 @@ export default function RegistrosScreen() {
   const router = useRouter();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
   const { toast, showToast, dismissToast } = useToast();
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
   const filteredRegistros = useMemo(() => {
-    const base = query.trim()
-      ? registros.filter((r) => {
-          const q = query.toLowerCase();
-          return (
-            r.titulo.toLowerCase().includes(q) ||
-            (r.cliente?.toLowerCase().includes(q) ?? false) ||
-            r.descripcion.toLowerCase().includes(q)
-          );
-        })
+    let base = tipoFiltro
+      ? registros.filter((r) => r.titulo === tipoFiltro)
       : registros;
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      base = base.filter((r) =>
+        r.titulo.toLowerCase().includes(q) ||
+        (r.cliente?.toLowerCase().includes(q) ?? false) ||
+        r.descripcion.toLowerCase().includes(q)
+      );
+    }
     return [...base].sort((a, b) => {
       const da = a.fecha ?? a.createdAt.slice(0, 10);
       const db = b.fecha ?? b.createdAt.slice(0, 10);
       return db.localeCompare(da);
     });
-  }, [registros, query]);
+  }, [registros, query, tipoFiltro]);
 
   const handleEdit = (id: string) => {
     setOpenMenuId(null);
@@ -148,8 +152,30 @@ export default function RegistrosScreen() {
           returnKeyType="search"
         />
       </View>
+      {/* Chips de filtro por tipo */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+        <View style={styles.filterRow}>
+          <Pressable
+            style={[styles.filterChip, !tipoFiltro && styles.filterChipActive]}
+            onPress={() => setTipoFiltro(null)}
+          >
+            <Text style={[styles.filterChipText, !tipoFiltro && styles.filterChipTextActive]}>Todos</Text>
+          </Pressable>
+          {TIPOS_FILTRO.map((tipo) => (
+            <Pressable
+              key={tipo}
+              style={[styles.filterChip, tipoFiltro === tipo && styles.filterChipActive]}
+              onPress={() => setTipoFiltro((prev) => (prev === tipo ? null : tipo))}
+            >
+              <Text style={[styles.filterChipText, tipoFiltro === tipo && styles.filterChipTextActive]}>
+                {tipo}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
       <Text style={styles.subtitle}>
-        {query.trim()
+        {(query.trim() || tipoFiltro)
           ? `${filteredRegistros.length} resultado${filteredRegistros.length !== 1 ? 's' : ''}`
           : 'Toca una jornada para ver el detalle.'}
       </Text>
@@ -222,6 +248,16 @@ function makeStyles(C: ThemeColors) {
     },
     emptyTitle: { fontSize: 20, fontWeight: '700', color: C.text, marginBottom: 8 },
     emptyText: { color: C.textMuted, fontSize: 15, textAlign: 'center', lineHeight: 22 },
+
+    filterScroll: { marginVertical: 4 },
+    filterRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
+    filterChip: {
+      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+      backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
+    },
+    filterChipActive: { backgroundColor: Colors.brand, borderColor: Colors.brand },
+    filterChipText: { fontSize: 13, fontWeight: '600', color: C.textSecondary },
+    filterChipTextActive: { color: '#ffffff' },
 
     recordCard: {
       backgroundColor: C.card, borderRadius: 22, padding: 20,

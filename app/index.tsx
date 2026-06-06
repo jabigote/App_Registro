@@ -39,9 +39,10 @@ export default function HomeScreen() {
     router.push({
       pathname: '/nuevo',
       params: {
-        fechaPreset:  quickEntry.fecha,
-        inicioPreset: quickEntry.inicio,
-        finPreset:    quickEntry.fin,
+        fechaPreset:       quickEntry.fecha,
+        inicioPreset:      quickEntry.inicio,
+        finPreset:         quickEntry.fin,
+        descripcionPreset: quickEntry.notas ?? '',
       },
     });
   };

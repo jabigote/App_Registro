@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useRegistro } from '@/contexts/registro-context';
@@ -22,6 +22,7 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
   const [markFailed, setMarkFailed] = useState(false);
+  const [notaEntrada, setNotaEntrada] = useState('');
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -33,7 +34,8 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
   const handleEntrada = async () => {
     setMenuVisible(false);
     const hora = roundToNearest30(new Date());
-    await saveQuickEntry({ fecha: todayDateStr(), inicio: hora });
+    await saveQuickEntry({ fecha: todayDateStr(), inicio: hora, notas: notaEntrada.trim() || undefined });
+    setNotaEntrada('');
     onFichajeRapido?.(`Entrada registrada: ${hora}`);
   };
 
@@ -79,7 +81,7 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
           <Image
             source={brandLogo}
             style={styles.logoImage}
-            contentFit="fill"
+            contentFit="contain"
             onError={() => setLogoFailed(true)}
           />
         ) : (
@@ -120,9 +122,20 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
               </Pressable>
             </>
           ) : (
-            <Pressable style={styles.menuItem} onPress={handleEntrada}>
-              <Text style={[styles.menuItemFichaje, { color: Colors.brand }]}>Registrar entrada</Text>
-            </Pressable>
+            <>
+              <TextInput
+                style={styles.notaInput}
+                placeholder="Nota de entrada (opcional)"
+                placeholderTextColor={C.textFaint}
+                value={notaEntrada}
+                onChangeText={setNotaEntrada}
+                returnKeyType="done"
+                maxLength={80}
+              />
+              <Pressable style={styles.menuItem} onPress={handleEntrada}>
+                <Text style={[styles.menuItemFichaje, { color: Colors.brand }]}>Registrar entrada</Text>
+              </Pressable>
+            </>
           )}
         </View>
       )}
@@ -158,5 +171,11 @@ function makeStyles(C: ThemeColors) {
     menuDivider: { height: 1, backgroundColor: C.border, marginVertical: 4, marginHorizontal: -4 },
     menuItemFichaje: { fontSize: 14, fontWeight: '700', color: C.text },
     menuItemFichajeHint: { fontSize: 11, color: C.textFaint, marginTop: 2 },
+    notaInput: {
+      backgroundColor: C.background, borderRadius: 10,
+      borderWidth: 1, borderColor: C.border,
+      paddingHorizontal: 10, paddingVertical: 8,
+      fontSize: 13, color: C.text, marginBottom: 4,
+    },
   });
 }
