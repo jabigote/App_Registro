@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useRegistro } from '@/contexts/registro-context';
@@ -23,16 +23,30 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
   const [logoFailed, setLogoFailed] = useState(false);
   const [markFailed, setMarkFailed] = useState(false);
   const [notaEntrada, setNotaEntrada] = useState('');
+  const menuAnim = useRef(new Animated.Value(0)).current;
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
+  const openMenu = () => {
+    setMenuVisible(true);
+    Animated.spring(menuAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }).start();
+  };
+
+  const closeMenu = () => {
+    Animated.timing(menuAnim, { toValue: 0, duration: 160, useNativeDriver: true }).start(() =>
+      setMenuVisible(false)
+    );
+  };
+
+  const toggleMenu = () => (menuVisible ? closeMenu() : openMenu());
+
   const handleNavigate = (path: '/' | '/nuevo' | '/registros' | '/registro-mensual' | '/ajustes') => {
-    setMenuVisible(false);
+    closeMenu();
     router.push(path);
   };
 
   const handleEntrada = async () => {
-    setMenuVisible(false);
+    closeMenu();
     const hora = roundToNearest30(new Date());
     await saveQuickEntry({ fecha: todayDateStr(), inicio: hora, notas: notaEntrada.trim() || undefined });
     setNotaEntrada('');
@@ -41,7 +55,7 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
 
   const handleSalida = () => {
     if (!quickEntry) return;
-    setMenuVisible(false);
+    closeMenu();
     const hora = roundToNearest30(new Date());
     router.push({
       pathname: '/nuevo',
@@ -54,7 +68,7 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
   };
 
   const handleCancelarEntrada = async () => {
-    setMenuVisible(false);
+    closeMenu();
     await saveQuickEntry(null);
     onFichajeRapido?.('Entrada cancelada');
   };
@@ -62,7 +76,7 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
   return (
     <View style={styles.container}>
       {/* Icono S — botón de menú */}
-      <Pressable style={styles.iconButton} onPress={() => setMenuVisible((prev) => !prev)}>
+      <Pressable style={styles.iconButton} onPress={toggleMenu}>
         {!markFailed ? (
           <Image
             source={brandMark}
@@ -90,9 +104,30 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
         <Text style={styles.brandTag}>Registro de jornada laboral</Text>
       </View>
 
-      {/* Menú desplegable */}
+      {/* Menú desplegable animado */}
       {menuVisible && (
-        <View style={styles.menu}>
+        <Animated.View
+          style={[
+            styles.menu,
+            {
+              opacity: menuAnim,
+              transform: [
+                {
+                  scale: menuAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.92, 1],
+                  }),
+                },
+                {
+                  translateY: menuAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-8, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
           {/* Navegación */}
           <Pressable style={styles.menuItem} onPress={() => handleNavigate('/')}>
             <Text style={styles.menuItemText}>Inicio</Text>
@@ -137,7 +172,7 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
               </Pressable>
             </>
           )}
-        </View>
+        </Animated.View>
       )}
     </View>
   );

@@ -1,5 +1,6 @@
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
@@ -9,6 +10,38 @@ import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import { todayDateStr } from '@/utils/date';
 import { roundToNearest30 } from '@/utils/time';
+
+const TIPO_COLORS: Record<string, string> = {
+  Oficina:     '#3b82f6',
+  Cliente:     '#f59e0b',
+  Teletrabajo: '#8b5cf6',
+  Mixto:       '#14b8a6',
+  Casa:        '#22c55e',
+};
+
+function useElapsedTimer(inicio: string | undefined, active: boolean): string {
+  const [elapsed, setElapsed] = useState('');
+
+  useEffect(() => {
+    if (!active || !inicio) { setElapsed(''); return; }
+    const update = () => {
+      const [h, m] = inicio.split(':').map(Number);
+      const start = new Date();
+      start.setHours(h, m, 0, 0);
+      const diffMs = Date.now() - start.getTime();
+      if (diffMs < 0) { setElapsed(''); return; }
+      const totalMin = Math.floor(diffMs / 60000);
+      const hh = Math.floor(totalMin / 60);
+      const mm = totalMin % 60;
+      setElapsed(mm > 0 ? `${hh}h ${mm}m` : `${hh}h`);
+    };
+    update();
+    const id = setInterval(update, 30000);
+    return () => clearInterval(id);
+  }, [inicio, active]);
+
+  return elapsed;
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -21,7 +54,11 @@ export default function HomeScreen() {
   const latest = registros[0];
   const recientes = registros.slice(0, 3);
 
+  const timerActive = Boolean(quickEntry && !quickEntry.fin);
+  const elapsed = useElapsedTimer(quickEntry?.inicio, timerActive);
+
   const handleEntrada = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const hora = roundToNearest30(new Date());
     await saveQuickEntry({ fecha: todayDateStr(), inicio: hora });
     showToast(`Entrada registrada: ${hora}`);
@@ -29,6 +66,7 @@ export default function HomeScreen() {
 
   const handleSalida = async () => {
     if (!quickEntry) return;
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const hora = roundToNearest30(new Date());
     await saveQuickEntry({ ...quickEntry, fin: hora });
     showToast(`Salida registrada: ${hora}`);
@@ -72,6 +110,13 @@ export default function HomeScreen() {
               : 'Sin entrada registrada'}
           </Text>
 
+          {/* Timer en vivo */}
+          {timerActive && elapsed ? (
+            <View style={styles.timerBadge}>
+              <Text style={styles.timerText}>Llevas {elapsed}</Text>
+            </View>
+          ) : null}
+
           {quickEntry?.fin ? (
             <View style={styles.fichajeRow}>
               <Pressable style={styles.fichajeBtnSecondary} onPress={handleCancelarEntrada}>
@@ -88,7 +133,7 @@ export default function HomeScreen() {
                   <Text style={styles.fichajeBtnSecondaryText}>{quickEntry.inicio} · Cancelar</Text>
                 </Pressable>
               ) : (
-                <Pressable style={styles.fichajeBtnPrimary} onPress={handleEntrada}>
+                <Pressable style={styles.fichajeBtnEntrada} onPress={handleEntrada}>
                   <Text style={styles.fichajeBtnPrimaryText}>Entrada</Text>
                 </Pressable>
               )}
@@ -130,7 +175,8 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {!loading && recientes.length > 0 && (
+        {/* ── Últimas jornadas ── */}
+        {!loading && recientes.length > 0 ? (
           <View style={styles.recentSection}>
             <Text style={styles.recentTitle}>Últimas jornadas</Text>
             {recientes.map((r) => (
@@ -139,18 +185,47 @@ export default function HomeScreen() {
                 style={({ pressed }) => [styles.recentCard, pressed && styles.recentCardPressed]}
                 onPress={() => router.push({ pathname: '/registro-detalle', params: { id: r.id } })}
               >
-                <View style={styles.recentCardLeft}>
-                  <Text style={styles.recentCardTitulo} numberOfLines={1}>{r.titulo}</Text>
-                  {r.cliente
-                    ? <Text style={styles.recentCardMeta} numberOfLines={1}>{r.cliente}</Text>
-                    : null}
-                  {r.inicio ? <Text style={styles.recentCardMeta}>{`${r.inicio} — ${r.fin}`}</Text> : null}
+                {/* Etiqueta de tipo con color */}
+                <View
+                  style={[
+                    styles.tipoTag,
+                    { backgroundColor: `${TIPO_COLORS[r.titulo] ?? Colors.brand}20` },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.tipoDot,
+                      { backgroundColor: TIPO_COLORS[r.titulo] ?? Colors.brand },
+                    ]}
+                  />
+                  <Text
+                    style={[styles.tipoTagText, { color: TIPO_COLORS[r.titulo] ?? Colors.brand }]}
+                  >
+                    {r.titulo}
+                  </Text>
                 </View>
-                <Text style={styles.recentCardDuracion}>{r.duracion}</Text>
+
+                <View style={styles.recentCardBody}>
+                  <View style={styles.recentCardLeft}>
+                    {r.cliente ? (
+                      <Text style={styles.recentCardMeta} numberOfLines={1}>{r.cliente}</Text>
+                    ) : null}
+                    {r.inicio ? (
+                      <Text style={styles.recentCardMeta}>{`${r.inicio} — ${r.fin}`}</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.recentCardDuracion}>{r.duracion}</Text>
+                </View>
               </Pressable>
             ))}
           </View>
-        )}
+        ) : !loading && recientes.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📋</Text>
+            <Text style={styles.emptyTitle}>Sin jornadas aún</Text>
+            <Text style={styles.emptyText}>Registra tu primera jornada para verla aquí.</Text>
+          </View>
+        ) : null}
       </ScrollView>
       <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
@@ -179,9 +254,20 @@ function makeStyles(C: ThemeColors) {
       textTransform: 'uppercase', letterSpacing: 0.8,
     },
     fichajeStatus: { fontSize: 15, fontWeight: '600', color: C.textSecondary },
+    timerBadge: {
+      alignSelf: 'flex-start',
+      backgroundColor: '#22c55e18',
+      borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5,
+      borderWidth: 1, borderColor: '#22c55e40',
+    },
+    timerText: { fontSize: 14, fontWeight: '700', color: '#22c55e' },
     fichajeRow: { flexDirection: 'row', gap: 12 },
     fichajeBtnPrimary: {
       flex: 1, backgroundColor: Colors.brand, borderRadius: 14,
+      paddingVertical: 14, alignItems: 'center',
+    },
+    fichajeBtnEntrada: {
+      flex: 1, backgroundColor: '#22c55e', borderRadius: 14,
       paddingVertical: 14, alignItems: 'center',
     },
     fichajeBtnDisabled: { backgroundColor: '#d1d5db' },
@@ -215,15 +301,31 @@ function makeStyles(C: ThemeColors) {
     recentSection: { gap: 10 },
     recentTitle: { fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 2 },
     recentCard: {
-      backgroundColor: C.card, borderRadius: 18, padding: 16,
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      backgroundColor: C.card, borderRadius: 18, padding: 16, gap: 10,
       shadowColor: '#000000', shadowOpacity: 0.05, shadowRadius: 14,
       shadowOffset: { width: 0, height: 6 }, elevation: 2,
     },
     recentCardPressed: { opacity: 0.7 },
+    tipoTag: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      alignSelf: 'flex-start', borderRadius: 8,
+      paddingHorizontal: 8, paddingVertical: 4,
+    },
+    tipoDot: { width: 7, height: 7, borderRadius: 4 },
+    tipoTagText: { fontSize: 11, fontWeight: '700' },
+    recentCardBody: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    },
     recentCardLeft: { flex: 1, marginRight: 12 },
-    recentCardTitulo: { fontSize: 15, fontWeight: '700', color: C.text },
-    recentCardMeta: { fontSize: 13, color: C.textMuted, marginTop: 3 },
-    recentCardDuracion: { fontSize: 14, fontWeight: '700', color: Colors.brand },
+    recentCardMeta: { fontSize: 13, color: C.textMuted, marginTop: 2 },
+    recentCardDuracion: { fontSize: 16, fontWeight: '800', color: Colors.brand },
+
+    emptyState: {
+      backgroundColor: C.card, borderRadius: 22, padding: 32,
+      alignItems: 'center', borderWidth: 1, borderColor: C.border, gap: 8,
+    },
+    emptyIcon: { fontSize: 36 },
+    emptyTitle: { fontSize: 17, fontWeight: '700', color: C.text },
+    emptyText: { fontSize: 14, color: C.textMuted, textAlign: 'center', lineHeight: 20 },
   });
 }

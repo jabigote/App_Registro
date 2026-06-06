@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
@@ -131,8 +131,29 @@ export default function RegistroMensualScreen() {
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
 
   const [showPreview, setShowPreview] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(true);
   const [showChart, setShowChart] = useState(true);
   const [showWeekly, setShowWeekly] = useState(false);
+
+  // Mapa día → tipo para el calendario
+  const dayTipoMap = useMemo(() => {
+    const map: Record<number, string> = {};
+    registrosDelMes.forEach((r) => { map[getDayFromRegistro(r)] = r.titulo; });
+    return map;
+  }, [registrosDelMes]);
+
+  // Celdas del calendario: primer día de semana del mes + días
+  const calendarCells = useMemo(() => {
+    const firstDay = new Date(year, month, 1).getDay(); // 0=Dom
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    // Lunes = 0 offset
+    const offset = firstDay === 0 ? 6 : firstDay - 1;
+    const cells: (number | null)[] = Array(offset).fill(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    // Completar hasta múltiplo de 7
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [year, month]);
 
   const horasPorTipo = useMemo(() => {
     const acc: Record<string, number> = {};
@@ -273,6 +294,60 @@ export default function RegistroMensualScreen() {
             <Text style={styles.summaryValue}>{totalPernoctas}</Text>
             <Text style={styles.summaryLabel}>Pernoctas</Text>
           </View>
+        </View>
+
+        {/* Calendario del mes */}
+        <View style={styles.analyticCard}>
+          <Pressable style={styles.analyticHeader} onPress={() => setShowCalendar((v) => !v)}>
+            <Text style={styles.analyticTitle}>Calendario</Text>
+            <Text style={styles.analyticToggle}>{showCalendar ? '▲' : '▼'}</Text>
+          </Pressable>
+          {showCalendar && (
+            <View style={styles.calBody}>
+              {/* Cabecera días de semana */}
+              <View style={styles.calRow}>
+                {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d) => (
+                  <View key={d} style={styles.calCell}>
+                    <Text style={styles.calWeekDay}>{d}</Text>
+                  </View>
+                ))}
+              </View>
+              {/* Filas de días */}
+              {Array.from({ length: calendarCells.length / 7 }, (_, row) => (
+                <View key={row} style={styles.calRow}>
+                  {calendarCells.slice(row * 7, row * 7 + 7).map((day, col) => {
+                    const tipo = day ? dayTipoMap[day] : undefined;
+                    const isToday =
+                      day === now.getDate() &&
+                      month === now.getMonth() &&
+                      year === now.getFullYear();
+                    return (
+                      <View
+                        key={col}
+                        style={[styles.calCell, isToday && styles.calCellToday]}
+                      >
+                        {day ? (
+                          <>
+                            <Text style={[styles.calDayNum, isToday && styles.calDayNumToday]}>
+                              {day}
+                            </Text>
+                            {tipo ? (
+                              <View
+                                style={[
+                                  styles.calDot,
+                                  { backgroundColor: TIPO_COLORS[tipo] ?? Colors.brand },
+                                ]}
+                              />
+                            ) : null}
+                          </>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Gráfica distribución por tipo */}
@@ -578,6 +653,18 @@ function makeStyles(C: ThemeColors) {
     weekRange: { fontSize: 13, color: C.text, fontWeight: '600', flex: 1 },
     weekCount: { fontSize: 12, color: C.textMuted, width: 52, textAlign: 'center' },
     weekTotal: { fontSize: 13, fontWeight: '700', color: Colors.brand, width: 60, textAlign: 'right' },
+
+    calBody: { paddingHorizontal: 12, paddingBottom: 14 },
+    calRow: { flexDirection: 'row' },
+    calCell: {
+      flex: 1, alignItems: 'center', paddingVertical: 6, gap: 3,
+      borderRadius: 8,
+    },
+    calCellToday: { backgroundColor: `${Colors.brand}12` },
+    calWeekDay: { fontSize: 11, fontWeight: '700', color: C.textMuted },
+    calDayNum: { fontSize: 13, fontWeight: '600', color: C.text },
+    calDayNumToday: { color: Colors.brand, fontWeight: '800' },
+    calDot: { width: 6, height: 6, borderRadius: 3 },
 
     exportBtn: {
       backgroundColor: Colors.brand, borderRadius: 16,

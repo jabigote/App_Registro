@@ -1,6 +1,7 @@
+import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, SafeAreaView, SectionList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
@@ -11,14 +12,26 @@ import { formatFecha } from '@/utils/date';
 
 const TIPOS_FILTRO = ['Oficina', 'Cliente', 'Teletrabajo', 'Mixto', 'Casa'];
 
-function getCardDate(r: Registro): string {
-  const dateStr = r.fecha ?? r.createdAt.slice(0, 10);
-  return formatFecha(dateStr);
+const MESES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+
+function getRegistroDateStr(r: Registro): string {
+  return r.fecha ?? r.createdAt.slice(0, 10);
+}
+
+function getMonthKey(dateStr: string): string {
+  // "2026-06" → "Junio 2026"
+  const [y, m] = dateStr.split('-').map(Number);
+  return `${MESES[(m ?? 1) - 1]} ${y}`;
 }
 
 function getTimeDisplay(r: Registro): string {
   return r.inicio ? `${r.inicio} — ${r.fin}` : r.duracion;
 }
+
+type Section = { title: string; data: Registro[] };
 
 export default function RegistrosScreen() {
   const { registros, loading, deleteRegistro } = useRegistro();
@@ -29,6 +42,7 @@ export default function RegistrosScreen() {
   const { toast, showToast, dismissToast } = useToast();
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
+  const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
 
   const filteredRegistros = useMemo(() => {
     let base = tipoFiltro
@@ -42,20 +56,32 @@ export default function RegistrosScreen() {
         r.descripcion.toLowerCase().includes(q)
       );
     }
-    return [...base].sort((a, b) => {
-      const da = a.fecha ?? a.createdAt.slice(0, 10);
-      const db = b.fecha ?? b.createdAt.slice(0, 10);
-      return db.localeCompare(da);
-    });
+    return [...base].sort((a, b) =>
+      getRegistroDateStr(b).localeCompare(getRegistroDateStr(a))
+    );
   }, [registros, query, tipoFiltro]);
+
+  // Agrupar en secciones por mes-año
+  const sections = useMemo<Section[]>(() => {
+    const map = new Map<string, Registro[]>();
+    for (const r of filteredRegistros) {
+      const key = getMonthKey(getRegistroDateStr(r));
+      const arr = map.get(key) ?? [];
+      arr.push(r);
+      map.set(key, arr);
+    }
+    return Array.from(map.entries()).map(([title, data]) => ({ title, data }));
+  }, [filteredRegistros]);
 
   const handleEdit = (id: string) => {
     setOpenMenuId(null);
+    swipeableRefs.current.get(id)?.close();
     router.push({ pathname: '/registro-detalle', params: { id, editMode: '1' } });
   };
 
   const handleDelete = (id: string) => {
     setOpenMenuId(null);
+    swipeableRefs.current.get(id)?.close();
     Alert.alert('Eliminar jornada', '¿Seguro que quieres eliminar esta jornada?', [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -69,6 +95,17 @@ export default function RegistrosScreen() {
     ]);
   };
 
+  const renderRightActions = (id: string) => (
+    <View style={styles.swipeActions}>
+      <Pressable style={styles.swipeEdit} onPress={() => handleEdit(id)}>
+        <Text style={styles.swipeEditText}>Editar</Text>
+      </Pressable>
+      <Pressable style={styles.swipeDelete} onPress={() => handleDelete(id)}>
+        <Text style={styles.swipeDeleteText}>Borrar</Text>
+      </Pressable>
+    </View>
+  );
+
   const renderItem = ({ item: registro }: { item: Registro }) => {
     const menuOpen = openMenuId === registro.id;
     const dietaLabel =
@@ -79,64 +116,79 @@ export default function RegistrosScreen() {
     const tags = [dietaLabel, registro.pernocta ? 'Pernocta' : null, extras].filter(Boolean);
 
     return (
-      <Pressable
-        style={[styles.recordCard, menuOpen && styles.recordCardOpen]}
-        onPress={() => {
-          if (menuOpen) { setOpenMenuId(null); return; }
-          router.push({ pathname: '/registro-detalle', params: { id: registro.id } });
-        }}
+      <Swipeable
+        ref={(ref) => { swipeableRefs.current.set(registro.id, ref); }}
+        renderRightActions={() => renderRightActions(registro.id)}
+        overshootRight={false}
+        friction={2}
+        rightThreshold={40}
+        onSwipeableOpen={() => setOpenMenuId(null)}
       >
-        <View style={styles.recordHeader}>
-          <View style={styles.recordTitleCol}>
-            <Text style={styles.recordTitle} numberOfLines={1}>{registro.titulo}</Text>
-            {registro.cliente
-              ? <Text style={styles.recordCliente} numberOfLines={1}>{registro.cliente}</Text>
-              : null}
+        <Pressable
+          style={[styles.recordCard, menuOpen && styles.recordCardOpen]}
+          onPress={() => {
+            if (menuOpen) { setOpenMenuId(null); return; }
+            router.push({ pathname: '/registro-detalle', params: { id: registro.id } });
+          }}
+        >
+          <View style={styles.recordHeader}>
+            <View style={styles.recordTitleCol}>
+              <Text style={styles.recordTitle} numberOfLines={1}>{registro.titulo}</Text>
+              {registro.cliente
+                ? <Text style={styles.recordCliente} numberOfLines={1}>{registro.cliente}</Text>
+                : null}
+            </View>
+            <View style={styles.recordHeaderRight}>
+              <Text style={styles.recordDuration}>{registro.duracion}</Text>
+              <Pressable
+                onPress={() => setOpenMenuId((prev) => (prev === registro.id ? null : registro.id))}
+                style={[styles.menuBubble, menuOpen && styles.menuBubbleActive]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={[styles.menuBubbleText, menuOpen && styles.menuBubbleTextActive]}>···</Text>
+              </Pressable>
+            </View>
           </View>
-          <View style={styles.recordHeaderRight}>
-            <Text style={styles.recordDuration}>{registro.duracion}</Text>
-            <Pressable
-              onPress={() => setOpenMenuId((prev) => (prev === registro.id ? null : registro.id))}
-              style={[styles.menuBubble, menuOpen && styles.menuBubbleActive]}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={[styles.menuBubbleText, menuOpen && styles.menuBubbleTextActive]}>···</Text>
-            </Pressable>
-          </View>
-        </View>
 
-        <Text style={styles.recordSubtitle}>
-          {getCardDate(registro)} · {getTimeDisplay(registro)}
-        </Text>
+          <Text style={styles.recordSubtitle}>
+            {formatFecha(getRegistroDateStr(registro))} · {getTimeDisplay(registro)}
+          </Text>
 
-        {tags.length > 0 && (
-          <View style={styles.tagRow}>
-            {tags.map((tag) => (
-              <View key={tag} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+          {tags.length > 0 && (
+            <View style={styles.tagRow}>
+              {tags.map((tag) => (
+                <View key={tag} style={styles.tag}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
-        {registro.descripcion
-          ? <Text style={styles.recordDescription}>{registro.descripcion}</Text>
-          : null}
+          {registro.descripcion
+            ? <Text style={styles.recordDescription}>{registro.descripcion}</Text>
+            : null}
 
-        {menuOpen && (
-          <View style={styles.cardMenu}>
-            <Pressable style={styles.cardMenuItem} onPress={() => handleEdit(registro.id)}>
-              <Text style={styles.cardMenuItemText}>Editar</Text>
-            </Pressable>
-            <View style={styles.cardMenuDivider} />
-            <Pressable style={styles.cardMenuItem} onPress={() => handleDelete(registro.id)}>
-              <Text style={[styles.cardMenuItemText, styles.cardMenuDestructive]}>Eliminar</Text>
-            </Pressable>
-          </View>
-        )}
-      </Pressable>
+          {menuOpen && (
+            <View style={styles.cardMenu}>
+              <Pressable style={styles.cardMenuItem} onPress={() => handleEdit(registro.id)}>
+                <Text style={styles.cardMenuItemText}>Editar</Text>
+              </Pressable>
+              <View style={styles.cardMenuDivider} />
+              <Pressable style={styles.cardMenuItem} onPress={() => handleDelete(registro.id)}>
+                <Text style={[styles.cardMenuItemText, styles.cardMenuDestructive]}>Eliminar</Text>
+              </Pressable>
+            </View>
+          )}
+        </Pressable>
+      </Swipeable>
     );
   };
+
+  const renderSectionHeader = ({ section: { title } }: { section: Section }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderText}>{title}</Text>
+    </View>
+  );
 
   const listHeader = (
     <View style={styles.listHeader}>
@@ -177,17 +229,22 @@ export default function RegistrosScreen() {
       <Text style={styles.subtitle}>
         {(query.trim() || tipoFiltro)
           ? `${filteredRegistros.length} resultado${filteredRegistros.length !== 1 ? 's' : ''}`
-          : 'Toca una jornada para ver el detalle.'}
+          : 'Desliza a la izquierda para editar o borrar.'}
       </Text>
     </View>
   );
 
   const listEmpty = (
     <View style={styles.emptyState}>
-      {query.trim() ? (
+      <Text style={styles.emptyIcon}>📋</Text>
+      {query.trim() || tipoFiltro ? (
         <>
           <Text style={styles.emptyTitle}>Sin resultados</Text>
-          <Text style={styles.emptyText}>No hay jornadas que coincidan con &quot;{query}&quot;.</Text>
+          <Text style={styles.emptyText}>
+            {query.trim()
+              ? `No hay jornadas que coincidan con "${query}".`
+              : `No hay jornadas del tipo "${tipoFiltro}".`}
+          </Text>
         </>
       ) : (
         <>
@@ -208,15 +265,18 @@ export default function RegistrosScreen() {
           <Text style={styles.loadingText}>Cargando registros…</Text>
         </View>
       ) : (
-        <FlatList
-          data={filteredRegistros}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.page}
           showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled
           onScrollBeginDrag={() => setOpenMenuId(null)}
           ListHeaderComponent={listHeader}
           ListEmptyComponent={listEmpty}
           renderItem={renderItem}
+          renderSectionHeader={renderSectionHeader}
+          SectionSeparatorComponent={() => <View style={styles.sectionSep} />}
         />
       )}
       <Toast toast={toast} onDismiss={dismissToast} />
@@ -232,8 +292,8 @@ function makeStyles(C: ThemeColors) {
       zIndex: 10, elevation: 6, backgroundColor: C.background,
     },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    page: { padding: 24, paddingTop: 16, gap: 14, paddingBottom: 40 },
-    listHeader: { gap: 10, marginBottom: 4 },
+    page: { padding: 24, paddingTop: 0, paddingBottom: 40 },
+    listHeader: { gap: 10, marginBottom: 4, marginTop: 16 },
     title: { fontSize: 30, fontWeight: '800', color: C.text, marginBottom: 2 },
     searchContainer: {
       backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.border,
@@ -241,13 +301,27 @@ function makeStyles(C: ThemeColors) {
     searchInput: { padding: 14, fontSize: 15, color: C.text },
     subtitle: { fontSize: 14, color: C.textMuted },
     loadingText: { color: C.textMuted, fontSize: 15, textAlign: 'center' },
-    emptyState: {
-      marginTop: 4, backgroundColor: C.card, borderRadius: 24, padding: 28, alignItems: 'center',
-      shadowColor: '#000000', shadowOpacity: 0.06, shadowRadius: 20,
-      shadowOffset: { width: 0, height: 10 }, elevation: 3,
+
+    sectionHeader: {
+      backgroundColor: C.background,
+      paddingVertical: 8, paddingHorizontal: 0,
+      borderBottomWidth: 1, borderBottomColor: C.border,
+      marginTop: 12,
     },
-    emptyTitle: { fontSize: 20, fontWeight: '700', color: C.text, marginBottom: 8 },
-    emptyText: { color: C.textMuted, fontSize: 15, textAlign: 'center', lineHeight: 22 },
+    sectionHeaderText: {
+      fontSize: 13, fontWeight: '700', color: Colors.brand,
+      textTransform: 'uppercase', letterSpacing: 0.8,
+    },
+    sectionSep: { height: 10 },
+
+    emptyState: {
+      marginTop: 4, backgroundColor: C.card, borderRadius: 24, padding: 32, alignItems: 'center',
+      shadowColor: '#000000', shadowOpacity: 0.06, shadowRadius: 20,
+      shadowOffset: { width: 0, height: 10 }, elevation: 3, gap: 8,
+    },
+    emptyIcon: { fontSize: 36 },
+    emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+    emptyText: { color: C.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 21 },
 
     filterScroll: { marginVertical: 4 },
     filterRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
@@ -259,8 +333,21 @@ function makeStyles(C: ThemeColors) {
     filterChipText: { fontSize: 13, fontWeight: '600', color: C.textSecondary },
     filterChipTextActive: { color: '#ffffff' },
 
+    // Swipe actions
+    swipeActions: { flexDirection: 'row', marginTop: 12 },
+    swipeEdit: {
+      backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center',
+      paddingHorizontal: 20, borderTopLeftRadius: 18, borderBottomLeftRadius: 18,
+    },
+    swipeEditText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
+    swipeDelete: {
+      backgroundColor: '#dc2626', justifyContent: 'center', alignItems: 'center',
+      paddingHorizontal: 20, borderTopRightRadius: 18, borderBottomRightRadius: 18,
+    },
+    swipeDeleteText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
+
     recordCard: {
-      backgroundColor: C.card, borderRadius: 22, padding: 20,
+      backgroundColor: C.card, borderRadius: 22, padding: 20, marginTop: 12,
       shadowColor: '#000000', shadowOpacity: 0.06, shadowRadius: 20,
       shadowOffset: { width: 0, height: 10 }, elevation: 3,
       gap: 8, borderWidth: 1, borderColor: 'transparent',

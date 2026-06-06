@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -58,8 +59,11 @@ export default function NuevoRegistroScreen() {
     resetOnTipoChange:  true,
   });
 
+  const horasExtrasInvalid = horasExtras.trim().length > 0 && parseHoursInput(horasExtras) === null;
+
   const handleGuardar = async () => {
     if (!canSave || !effectiveDuration || saving) return;
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSaving(true);
     try {
       if (isMixed) {
@@ -135,35 +139,26 @@ export default function NuevoRegistroScreen() {
           </View>
         </View>
 
-        {/* Tipo de jornada */}
+        {/* Tipo de jornada — chips horizontales */}
         <View style={styles.fieldset}>
           <Text style={styles.fieldLabel}>Tipo de jornada</Text>
-          <Pressable
-            style={[styles.select, tipoOpen && styles.selectOpen]}
-            onPress={() => setTipoOpen((p) => !p)}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tipoChipRow}
           >
-            <Text style={tipoJornada ? styles.selectText : styles.selectPlaceholder}>
-              {tipoJornada
-                ? TIPOS_JORNADA.find((t) => t.value === tipoJornada)?.label
-                : 'Selecciona el tipo de jornada'}
-            </Text>
-            <Text style={styles.selectArrow}>{tipoOpen ? '▲' : '▼'}</Text>
-          </Pressable>
-          {tipoOpen && (
-            <View style={styles.dropdownList}>
-              {TIPOS_JORNADA.map((tipo) => (
-                <Pressable
-                  key={tipo.value}
-                  style={[styles.dropdownItem, tipoJornada === tipo.value && styles.dropdownItemActive]}
-                  onPress={() => { setTipoJornada(tipo.value); setTipoOpen(false); }}
-                >
-                  <Text style={[styles.dropdownItemText, tipoJornada === tipo.value && styles.dropdownItemTextActive]}>
-                    {tipo.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+            {TIPOS_JORNADA.map((tipo) => (
+              <Pressable
+                key={tipo.value}
+                style={[styles.tipoChip, tipoJornada === tipo.value && styles.tipoChipActive]}
+                onPress={() => setTipoJornada(tipo.value)}
+              >
+                <Text style={[styles.tipoChipText, tipoJornada === tipo.value && styles.tipoChipTextActive]}>
+                  {tipo.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
 
         {/* Cliente (solo para Cliente y Mixto) */}
@@ -306,13 +301,16 @@ export default function NuevoRegistroScreen() {
           <View style={styles.fieldset}>
             <Text style={styles.fieldLabel}>Horas extras (+25 %)</Text>
             <TextInput
-              style={[styles.input, styles.inputCompact]}
+              style={[styles.input, styles.inputCompact, horasExtrasInvalid && styles.inputError]}
               placeholder="0"
               placeholderTextColor={C.textFaint}
               value={horasExtras}
               onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.:,]/g, ''))}
               keyboardType="numbers-and-punctuation"
             />
+            {horasExtrasInvalid && (
+              <Text style={styles.fieldError}>Formato inválido. Usa p.ej. 1.5 o 1:30</Text>
+            )}
           </View>
         )}
 
@@ -385,24 +383,16 @@ function makeStyles(C: ThemeColors) {
     totalLabel: { fontSize: 13, color: C.textMuted, fontWeight: '600' },
     totalValue: { fontSize: 16, fontWeight: '800', color: C.text },
     totalInvalid: { color: '#f59e0b', fontSize: 13, fontWeight: '600' },
-    select: {
-      backgroundColor: C.card, borderRadius: 16, padding: 16,
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-      borderWidth: 1, borderColor: C.border,
+    tipoChipRow: { flexDirection: 'row', gap: 10, paddingVertical: 2 },
+    tipoChip: {
+      paddingVertical: 12, paddingHorizontal: 20, borderRadius: 20,
+      backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border,
     },
-    selectOpen: { borderColor: Colors.brand, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
-    selectText: { fontSize: 16, color: C.text, flex: 1 },
-    selectPlaceholder: { fontSize: 16, color: C.textFaint, flex: 1 },
-    selectArrow: { fontSize: 11, color: C.textMuted, marginLeft: 8 },
-    dropdownList: {
-      backgroundColor: C.card, borderWidth: 1, borderTopWidth: 0,
-      borderColor: Colors.brand, borderBottomLeftRadius: 16, borderBottomRightRadius: 16,
-      overflow: 'hidden',
-    },
-    dropdownItem: { paddingVertical: 14, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: C.separator },
-    dropdownItemActive: { backgroundColor: `${Colors.brand}15` },
-    dropdownItemText: { fontSize: 15, color: C.text },
-    dropdownItemTextActive: { color: Colors.brand, fontWeight: '700' },
+    tipoChipActive: { backgroundColor: Colors.brand, borderColor: Colors.brand },
+    tipoChipText: { fontSize: 14, fontWeight: '700', color: C.textSecondary },
+    tipoChipTextActive: { color: '#ffffff' },
+    inputError: { borderColor: '#f59e0b', borderWidth: 1.5 },
+    fieldError: { fontSize: 12, color: '#f59e0b', fontWeight: '600', marginTop: -4 },
     chipRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
     chip: {
       paddingVertical: 10, paddingHorizontal: 18, borderRadius: 12,
