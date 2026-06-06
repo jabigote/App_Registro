@@ -1,0 +1,139 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+import { type Dieta } from '@/contexts/registro-context';
+import { fmtDuration, parseHoursInput, parseTime, STANDARD_END_MIN } from '@/utils/time';
+
+export const TIPOS_JORNADA = [
+  { value: 'Oficina',     label: 'Oficina' },
+  { value: 'Cliente',     label: 'Cliente / Exterior' },
+  { value: 'Teletrabajo', label: 'Teletrabajo' },
+  { value: 'Mixto',       label: 'Mixto (casa + cliente)' },
+  { value: 'Casa',        label: 'Casa (recuperación de horas)' },
+];
+
+export const DIETA_OPTS: { value: Dieta; label: string }[] = [
+  { value: 'ninguna',  label: 'Sin dieta' },
+  { value: 'media',    label: '½ Dieta' },
+  { value: 'completa', label: 'Dieta completa' },
+];
+
+export const DIETA_LABEL: Record<Dieta, string> = {
+  ninguna: 'Sin dieta',
+  media: '½ Dieta',
+  completa: 'Dieta completa',
+};
+
+export function needsCliente(tipo: string): boolean {
+  return tipo === 'Cliente' || tipo === 'Mixto';
+}
+
+export type JornadaFormOptions = {
+  initialTipo?: string;
+  initialCliente?: string;
+  initialInicio1?: string;
+  initialFin1?: string;
+  initialInicio2?: string;
+  initialFin2?: string;
+  initialHomeRecovery?: string;
+  initialExternalHours?: string;
+  initialDieta?: Dieta;
+  initialPernocta?: boolean;
+  initialHorasExtras?: string;
+  initialDescripcion?: string;
+  /** Modo edición: no sobreescribir las horas extras guardadas en el primer render */
+  skipFirstExtrasSync?: boolean;
+  /** Modo creación: resetear campos de cliente/horas al cambiar tipo de jornada */
+  resetOnTipoChange?: boolean;
+};
+
+export function useJornadaForm(options: JornadaFormOptions = {}) {
+  const [tipoJornada, setTipoJornada]           = useState(options.initialTipo ?? '');
+  const [tipoOpen, setTipoOpen]                 = useState(false);
+  const [nombreCliente, setNombreCliente]       = useState(options.initialCliente ?? '');
+  const [inicio1, setInicio1]                   = useState(options.initialInicio1 ?? '08:00');
+  const [fin1, setFin1]                         = useState(options.initialFin1 ?? '13:00');
+  const [inicio2, setInicio2]                   = useState(options.initialInicio2 ?? '');
+  const [fin2, setFin2]                         = useState(options.initialFin2 ?? '');
+  const [homeRecoveryInput, setHomeRecoveryInput] = useState(options.initialHomeRecovery ?? '');
+  const [externalHoursInput, setExternalHoursInput] = useState(options.initialExternalHours ?? '');
+  const [dieta, setDieta]                       = useState<Dieta>(options.initialDieta ?? 'ninguna');
+  const [pernocta, setPernocta]                 = useState(options.initialPernocta ?? false);
+  const [horasExtras, setHorasExtras]           = useState(options.initialHorasExtras ?? '0');
+  const [descripcion, setDescripcion]           = useState(options.initialDescripcion ?? '');
+
+  const isMixed = tipoJornada === 'Mixto';
+
+  const { duracion, suggestedExtras } = useMemo(() => {
+    if (isMixed) return { duracion: null, suggestedExtras: null };
+    const s1 = parseTime(inicio1); const e1 = parseTime(fin1);
+    if (s1 === null || e1 === null || e1 <= s1) return { duracion: null, suggestedExtras: null };
+    let total = e1 - s1;
+    let lastEnd = e1;
+    const has2 = inicio2.trim().length > 0 || fin2.trim().length > 0;
+    if (has2) {
+      const s2 = parseTime(inicio2); const e2 = parseTime(fin2);
+      if (s2 === null || e2 === null || e2 <= s2) return { duracion: null, suggestedExtras: null };
+      total += e2 - s2;
+      lastEnd = e2;
+    }
+    const extraMin = Math.max(0, lastEnd - STANDARD_END_MIN);
+    return { duracion: fmtDuration(total), suggestedExtras: Math.round(extraMin / 60 * 10) / 10 };
+  }, [isMixed, inicio1, fin1, inicio2, fin2]);
+
+  const mixedDuration = useMemo(() => {
+    if (!isMixed) return null;
+    const homeMin = parseHoursInput(homeRecoveryInput) ?? 0;
+    const extMin  = parseHoursInput(externalHoursInput) ?? 0;
+    const total   = homeMin + extMin;
+    return total > 0 ? fmtDuration(total) : null;
+  }, [isMixed, homeRecoveryInput, externalHoursInput]);
+
+  const mountedRef       = useRef(false);
+  const skipFirstRef     = useRef(options.skipFirstExtrasSync ?? false);
+  const resetOnChangeRef = useRef(options.resetOnTipoChange ?? false);
+
+  useEffect(() => {
+    if (skipFirstRef.current && !mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    if (!isMixed && suggestedExtras !== null) {
+      setHorasExtras(suggestedExtras > 0 ? String(suggestedExtras) : '0');
+    }
+  }, [isMixed, suggestedExtras]);
+
+  useEffect(() => {
+    if (!resetOnChangeRef.current) return;
+    setNombreCliente('');
+    setHomeRecoveryInput('');
+    setExternalHoursInput('');
+    setHorasExtras('0');
+  }, [tipoJornada]);
+
+  const effectiveDuration = isMixed ? mixedDuration : duracion;
+  const canSave =
+    tipoJornada.length > 0 &&
+    (!needsCliente(tipoJornada) || nombreCliente.trim().length > 0) &&
+    effectiveDuration !== null;
+
+  return {
+    tipoJornada, setTipoJornada,
+    tipoOpen, setTipoOpen,
+    nombreCliente, setNombreCliente,
+    inicio1, setInicio1,
+    fin1, setFin1,
+    inicio2, setInicio2,
+    fin2, setFin2,
+    homeRecoveryInput, setHomeRecoveryInput,
+    externalHoursInput, setExternalHoursInput,
+    dieta, setDieta,
+    pernocta, setPernocta,
+    horasExtras, setHorasExtras,
+    descripcion, setDescripcion,
+    isMixed,
+    duracion,
+    mixedDuration,
+    effectiveDuration,
+    canSave,
+  };
+}

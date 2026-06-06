@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Análisis del Proyecto — mi-app-ios — Junio 2026</title>
+  <style>
+    :root {
+      --brand:    #E30613;
+      --brand-dk: #1F1F21;
+      --gray-100: #f7f7f8;
+      --gray-200: #ebebed;
+      --gray-400: #9c9ca4;
+      --gray-700: #3c3c40;
+      --text:     #1a1a1c;
+      --radius:   6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: var(--text);
+      background: #fff;
+      padding: 0;
+    }
+
+    /* ── PORTADA ── */
+    .cover {
+      background: var(--brand-dk);
+      color: #fff;
+      padding: 60px 56px 48px;
+      page-break-after: always;
+    }
+    .cover .badge {
+      display: inline-block;
+      background: var(--brand);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 3px;
+      margin-bottom: 24px;
+    }
+    .cover h1 {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+    .cover .subtitle {
+      font-size: 15px;
+      color: #a0a0b0;
+      margin-bottom: 40px;
+    }
+    .cover .meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      border-top: 1px solid #3a3a42;
+      padding-top: 28px;
+    }
+    .cover .meta-item label {
+      display: block;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: #70708a;
+      margin-bottom: 4px;
+    }
+    .cover .meta-item span {
+      font-size: 13px;
+      color: #d0d0e0;
+    }
+
+    /* ── CONTENIDO ── */
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 48px 56px;
+    }
+
+    /* ── ÍNDICE ── */
+    .toc {
+      background: var(--gray-100);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      margin-bottom: 40px;
+      page-break-inside: avoid;
+    }
+    .toc h2 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--gray-400);
+      margin-bottom: 14px;
+    }
+    .toc ol {
+      padding-left: 20px;
+    }
+    .toc li {
+      font-size: 13px;
+      padding: 3px 0;
+      color: var(--gray-700);
+    }
+
+    /* ── SECCIONES ── */
+    .section {
+      margin-bottom: 44px;
+      page-break-inside: avoid;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      border-bottom: 2px solid var(--gray-200);
+      padding-bottom: 10px;
+    }
+    .section-num {
+      background: var(--brand);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    h2.section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--brand-dk);
+    }
+
+    h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--brand-dk);
+      margin: 22px 0 10px;
+    }
+    h3.severity-critical { color: #c0392b; }
+    h3.severity-important { color: #e67e22; }
+    h3.severity-minor { color: #2980b9; }
+
+    p { margin-bottom: 10px; }
+
+    /* ── TABLAS ── */
+    .table-wrap { overflow-x: auto; margin-bottom: 18px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    thead {
+      background: var(--brand-dk);
+      color: #fff;
+    }
+    thead th {
+      padding: 9px 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      white-space: nowrap;
+    }
+    tbody tr:nth-child(even) { background: var(--gray-100); }
+    tbody td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--gray-200);
+      vertical-align: top;
+    }
+
+    /* ── BADGES ── */
+    .badge-crítico  { background:#fde8e8; color:#c0392b; border:1px solid #f5c6c6; }
+    .badge-importante { background:#fef3e2; color:#b7590a; border:1px solid #fcddb0; }
+    .badge-menor    { background:#e8f4fd; color:#2471a3; border:1px solid #b3d7f5; }
+    .badge-alta     { background:#e8f8f0; color:#1e8449; border:1px solid #a9dfbf; }
+    .badge-media    { background:#fef3e2; color:#b7590a; border:1px solid #fcddb0; }
+    .badge-baja     { background:#f4f6f7; color:#555; border:1px solid #d5d8dc; }
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-size: 10.5px;
+      font-weight: 700;
+    }
+
+    /* ── CODE ── */
+    code {
+      font-family: "SF Mono", Menlo, "Cascadia Code", "Fira Code", monospace;
+      font-size: 11.5px;
+      background: var(--gray-100);
+      border: 1px solid var(--gray-200);
+      border-radius: 3px;
+      padding: 1px 5px;
+      color: var(--brand);
+    }
+
+    /* ── CALLOUT ── */
+    .callout {
+      border-left: 4px solid var(--brand);
+      background: #fef8f8;
+      padding: 14px 18px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+    .callout.info  { border-color: #2980b9; background: #eaf4fb; }
+    .callout.warn  { border-color: #e67e22; background: #fef5eb; }
+    .callout strong { display: block; margin-bottom: 4px; }
+
+    /* ── RESUMEN EJECUTIVO ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .summary-card {
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+    }
+    .summary-card .num {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .summary-card .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--gray-400);
+    }
+    .num-critical { color: #c0392b; }
+    .num-important { color: #e67e22; }
+    .num-minor { color: #2980b9; }
+
+    /* ── PRINT ── */
+    @media print {
+      body { font-size: 12px; }
+      .cover { padding: 48px 40px; }
+      main { padding: 32px 40px; }
+      .section { page-break-inside: avoid; }
+      table { font-size: 11.5px; }
+    }
+
+    /* ── FOOTER ── */
+    .footer {
+      margin-top: 60px;
+      border-top: 1px solid var(--gray-200);
+      padding-top: 16px;
+      font-size: 11px;
+      color: var(--gray-400);
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ PORTADA ═══════════════════════════ -->
+<div class="cover">
+  <div class="badge">Informe técnico</div>
+  <h1>Análisis del Proyecto<br>mi-app-ios</h1>
+  <p class="subtitle">Bugs, deuda técnica, mejoras y sugerencias de UI/UX</p>
+  <div class="meta">
+    <div class="meta-item">
+      <label>Proyecto</label>
+      <span>mi-app-ios — Salvagnini Ibérica</span>
+    </div>
+    <div class="meta-item">
+      <label>Stack</label>
+      <span>Expo ~54 / React Native 0.81 / TypeScript ~5.9</span>
+    </div>
+    <div class="meta-item">
+      <label>Fecha del análisis</label>
+      <span>Junio 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ MAIN ═══════════════════════════ -->
+<main>
+
+  <!-- ÍNDICE -->
+  <div class="toc">
+    <h2>Índice</h2>
+    <ol>
+      <li>Resumen ejecutivo</li>
+      <li>Bugs críticos — pueden causar pérdida de datos o bloqueo</li>
+      <li>Bugs importantes — comportamiento incorrecto y deuda técnica</li>
+      <li>Bugs menores — inconsistencias y código muerto</li>
+      <li>Deuda técnica estructural — duplicación de código</li>
+      <li>Problema sistémico — modo oscuro</li>
+      <li>Lista priorizada de mejoras a implementar</li>
+      <li>Sugerencias de nuevas funcionalidades</li>
+      <li>Sugerencias de mejora de UI/UX</li>
+    </ol>
+  </div>
+
+  <!-- ── 1. RESUMEN EJECUTIVO ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <h2 class="section-title">Resumen ejecutivo</h2>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="num num-critical">3</div>
+        <div class="label">Bugs críticos</div>
+      </div>
+      <div class="summary-card">
+        <div class="num num-important">5</div>
+        <div class="label">Bugs importantes</div>
+      </div>
+      <div class="summary-card">
+        <div class="num num-minor">7</div>
+        <div class="label">Bugs menores</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Conclusión general</strong>
+      El proyecto está funcional y bien estructurado, pero presenta un bug crítico en el manejo de errores al guardar (B1+B2), código de debug activo en producción (B4), y una duplicación significativa de lógica entre <code>nuevo.tsx</code> y <code>registro-detalle.tsx</code>.
+      El quick win de mayor impacto es el fix B1+B2+B4, estimado en menos de 30 minutos.
+      La refactorización del hook <code>useJornadaForm</code> y el soporte real de dark mode son las mejoras estructurales más valiosas a medio plazo.
+    </div>
+  </div>
+
+  <!-- ── 2. BUGS CRÍTICOS ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <h2 class="section-title">Bugs críticos</h2>
+    </div>
+    <p>Pueden causar pérdida de datos o bloqueo permanente de la interfaz.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Archivo</th>
+            <th>Línea</th>
+            <th>Descripción</th>
+            <th>Severidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>B1</strong></td>
+            <td><code>nuevo.tsx</code></td>
+            <td>~119</td>
+            <td><code>setSaving(true)</code> sin <code>finally { setSaving(false) }</code>. Si <code>addRegistro</code> lanza una excepción, el botón Guardar queda permanentemente deshabilitado hasta reiniciar la app.</td>
+            <td><span class="badge badge-crítico">Crítico</span></td>
+          </tr>
+          <tr>
+            <td><strong>B2</strong></td>
+            <td><code>registro-context.tsx</code></td>
+            <td>82/100/118/129/140</td>
+            <td>Todos los errores de AsyncStorage se silencian con <code>console.warn</code>. El usuario puede perder un registro guardado sin ningún aviso visible en la UI.</td>
+            <td><span class="badge badge-crítico">Crítico</span></td>
+          </tr>
+          <tr>
+            <td><strong>B3</strong></td>
+            <td><code>registro-context.tsx</code></td>
+            <td>107</td>
+            <td>ID generado con <code>Date.now()</code> — colisión posible si se guardan dos registros en el mismo milisegundo. Poco probable pero real en tests automáticos o importación masiva.</td>
+            <td><span class="badge badge-crítico">Crítico</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 3. BUGS IMPORTANTES ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <h2 class="section-title">Bugs importantes</h2>
+    </div>
+    <p>Comportamiento incorrecto o deuda técnica que afecta a la calidad del producto.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Archivo</th>
+            <th>Líneas</th>
+            <th>Descripción</th>
+            <th>Severidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>B4</strong></td>
+            <td><code>generateMonthlyReportFromTemplate.ts</code></td>
+            <td>270–276, 530–535</td>
+            <td><strong>5 <code>console.log</code> de debug activos en producción.</strong> Se imprimen hasta 22 logs por exportación (uno por fila del mes) más el listado completo del ZIP interno del .xlsx. Debe eliminarse o envolverse en <code>if (__DEV__)</code>.</td>
+            <td><span class="badge badge-importante">Importante</span></td>
+          </tr>
+          <tr>
+            <td><strong>B5</strong></td>
+            <td><code>nuevo.tsx</code></td>
+            <td>156</td>
+            <td><code>setTimeout(() =&gt; router.push(...), 1200)</code> sin cleanup. Puede disparar sobre componente desmontado si el usuario navega antes de que pasen 1,2 segundos. Usar <code>useRef</code> para guardar el ID y cancelarlo en el cleanup del efecto.</td>
+            <td><span class="badge badge-importante">Importante</span></td>
+          </tr>
+          <tr>
+            <td><strong>B6</strong></td>
+            <td><code>nuevo.tsx</code> / <code>registro-detalle.tsx</code></td>
+            <td>365 / 463</td>
+            <td>Regex de <code>horasExtras</code> <strong>inconsistentes</strong> entre creación y edición. Ninguno procesa <code>"1:30"</code> correctamente con <code>Number()</code> — se guarda <code>0</code> silenciosamente. Ambos deben delegar a <code>parseHoursInput</code> de <code>utils/time.ts</code>.</td>
+            <td><span class="badge badge-importante">Importante</span></td>
+          </tr>
+          <tr>
+            <td><strong>B7</strong></td>
+            <td><code>registro-mensual.tsx</code></td>
+            <td>21–27</td>
+            <td><code>durationToHours</code> redondea cada jornada individualmente a la media hora antes de sumarlas. Error acumulado de hasta ±14 min en el total mensual. Debe sumar minutos exactos y redondear solo el total.</td>
+            <td><span class="badge badge-importante">Importante</span></td>
+          </tr>
+          <tr>
+            <td><strong>B8</strong></td>
+            <td><code>auth-context.tsx</code></td>
+            <td>26</td>
+            <td><code>JSON.parse(raw) as Usuario</code> sin validación de forma. Datos de versiones anteriores de la app con esquema distinto se asignan sin detección. Añadir un guard similar a <code>isRegistro</code>.</td>
+            <td><span class="badge badge-importante">Importante</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 4. BUGS MENORES ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <h2 class="section-title">Bugs menores</h2>
+    </div>
+    <p>Inconsistencias, código muerto y problemas de baja prioridad.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Archivo</th>
+            <th>Descripción</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>B9</strong></td>
+            <td><code>registro-mensual.tsx</code></td>
+            <td><code>daysInMonth</code> se calcula pero nunca se usa (variable muerta).</td>
+          </tr>
+          <tr>
+            <td><strong>B10</strong></td>
+            <td><code>ajustes.tsx:43</code></td>
+            <td>Versión <code>"0.1.0"</code> hardcodeada. Debe leerla de <code>Constants.expoConfig?.version</code> para evitar desincronización con <code>package.json</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>B11</strong></td>
+            <td><code>brand-logo.tsx:164</code></td>
+            <td>Logo con <code>contentFit="fill"</code> y altura fija 160 px — puede distorsionarse según el ratio del asset. Usar <code>contentFit="contain"</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>B12</strong></td>
+            <td><code>utils/time.ts:3</code></td>
+            <td>JSDoc dice "cuarto de hora" pero <code>roundToNearest30</code> redondea a bloques de 30 minutos. El comentario es incorrecto.</td>
+          </tr>
+          <tr>
+            <td><strong>B13</strong></td>
+            <td><code>_layout.tsx:25</code></td>
+            <td><code>router</code> ausente del array de dependencias del <code>useEffect</code> de <code>AuthGuard</code>. ESLint lo reporta como warning.</td>
+          </tr>
+          <tr>
+            <td><strong>B14</strong></td>
+            <td><code>generateMonthlyReportFromTemplate.ts:221</code></td>
+            <td>Bloque <code>if</code> vacío sin cuerpo (dead code en <code>case 'home_recovery'</code>).</td>
+          </tr>
+          <tr>
+            <td><strong>B15</strong></td>
+            <td><code>generateMonthlyReport.ts</code></td>
+            <td>Archivo legado con SheetJS completo — no referenciado desde ninguna pantalla activa. Código muerto que confunde sobre cuál implementación usar. Puede eliminarse.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 5. DEUDA TÉCNICA ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <h2 class="section-title">Deuda técnica estructural — Duplicación de código</h2>
+    </div>
+
+    <div class="callout warn">
+      <strong>~100 líneas duplicadas entre <code>nuevo.tsx</code> y <code>registro-detalle.tsx</code></strong>
+      Este es el problema estructural más importante del proyecto.
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Elemento duplicado</th>
+            <th>Presente en</th>
+            <th>Solución propuesta</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>TIPOS_JORNADA</code> (constante)</td>
+            <td><code>nuevo.tsx</code> / <code>registro-detalle.tsx</code></td>
+            <td>Extraer a <code>constants/jornada.ts</code></td>
+          </tr>
+          <tr>
+            <td><code>DIETA_OPTS</code> (constante)</td>
+            <td><code>nuevo.tsx</code> / <code>registro-detalle.tsx</code></td>
+            <td>Extraer a <code>constants/jornada.ts</code></td>
+          </tr>
+          <tr>
+            <td><code>needsCliente()</code> (función)</td>
+            <td><code>nuevo.tsx</code> / <code>registro-detalle.tsx</code></td>
+            <td>Extraer a <code>utils/jornada.ts</code></td>
+          </tr>
+          <tr>
+            <td>Lógica de cálculo de duración (<code>useMemo</code>)</td>
+            <td><code>nuevo.tsx</code> / <code>registro-detalle.tsx</code></td>
+            <td>Extraer a hook <code>useJornadaForm()</code></td>
+          </tr>
+          <tr>
+            <td><code>suggestedExtras</code> (lógica)</td>
+            <td><code>nuevo.tsx</code> / <code>registro-detalle.tsx</code></td>
+            <td>Incluir en <code>useJornadaForm()</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 6. MODO OSCURO ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">6</div>
+      <h2 class="section-title">Problema sistémico — Modo oscuro</h2>
+    </div>
+
+    <div class="callout info">
+      <strong>Infraestructura presente, implementación ausente</strong>
+      <code>Colors.dark</code> está definido en <code>theme.ts</code> y <code>ThemeProvider</code> detecta el esquema del sistema, pero todos los archivos de <code>app/</code> y la mayoría de <code>components/</code> usan <code>Colors.light.*</code> hardcodeados. El dark mode está completamente roto aunque la base existe.
+    </div>
+
+    <p><strong>Archivos afectados:</strong> <code>index.tsx</code>, <code>nuevo.tsx</code>, <code>registros.tsx</code>, <code>registro-detalle.tsx</code>, <code>registro-mensual.tsx</code>, <code>ajustes.tsx</code>, <code>login.tsx</code>, <code>brand-logo.tsx</code>, <code>cliente-search-input.tsx</code>.</p>
+    <p><strong>Solución:</strong> Refactorizar los <code>StyleSheet</code> de todas las pantallas para leer el esquema del sistema con <code>useColorScheme()</code> y alternar entre <code>Colors.light</code> y <code>Colors.dark</code>. Además, <code>Fonts</code> está definido en <code>theme.ts</code> pero no se usa en ningún archivo — código muerto.</p>
+  </div>
+
+  <!-- ── 7. MEJORAS A IMPLEMENTAR ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">7</div>
+      <h2 class="section-title">Lista priorizada de mejoras a implementar</h2>
+    </div>
+
+    <h3 class="severity-critical">Prioridad alta</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Mejora</th><th>Archivos afectados</th><th>Estimación</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>M1</td>
+            <td>Fix B1+B2: envolver <code>handleGuardar</code> en try/catch/finally con <code>setSaving(false)</code> en finally y propagar errores de AsyncStorage como Toasts de error visibles.</td>
+            <td><code>nuevo.tsx</code>, <code>registro-context.tsx</code></td>
+            <td>~30 min</td>
+          </tr>
+          <tr>
+            <td>M2</td>
+            <td>Fix B6: reemplazar <code>Number(horasExtras)</code> por <code>parseHoursInput(horasExtras)</code> en ambas pantallas. La función ya existe en <code>utils/time.ts</code>.</td>
+            <td><code>nuevo.tsx</code>, <code>registro-detalle.tsx</code></td>
+            <td>~10 min</td>
+          </tr>
+          <tr>
+            <td>M3</td>
+            <td>Fix B4: eliminar los 5 <code>console.log</code> de debug activos en producción, o envolverlos en <code>if (__DEV__)</code>.</td>
+            <td><code>generateMonthlyReportFromTemplate.ts</code></td>
+            <td>~10 min</td>
+          </tr>
+          <tr>
+            <td>M4</td>
+            <td>Fix B7: sumar minutos exactos de todas las jornadas en <code>registro-mensual.tsx</code> y redondear solo el total, no cada jornada individualmente.</td>
+            <td><code>registro-mensual.tsx</code></td>
+            <td>~20 min</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="severity-important">Prioridad media</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Mejora</th><th>Archivos afectados</th><th>Estimación</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>M5</td>
+            <td>Extraer hook <code>useJornadaForm</code> con estado, validación, lógica de duración y constantes compartidas — elimina ~100 líneas duplicadas.</td>
+            <td><code>nuevo.tsx</code>, <code>registro-detalle.tsx</code>, nuevo <code>hooks/useJornadaForm.ts</code></td>
+            <td>~2h</td>
+          </tr>
+          <tr>
+            <td>M6</td>
+            <td>Fix B8: añadir guard de validación de forma para <code>Usuario</code> en <code>auth-context.tsx</code>, similar a <code>isRegistro</code>.</td>
+            <td><code>auth-context.tsx</code></td>
+            <td>~15 min</td>
+          </tr>
+          <tr>
+            <td>M7</td>
+            <td>Fix B3: reemplazar <code>Date.now()</code> por <code>Math.random().toString(36).slice(2)</code> o <code>crypto.randomUUID()</code> como ID de registro.</td>
+            <td><code>registro-context.tsx</code></td>
+            <td>~5 min</td>
+          </tr>
+          <tr>
+            <td>M8</td>
+            <td>Fix B5: guardar el ID del <code>setTimeout</code> en un <code>useRef</code> y cancelarlo en el return del <code>useEffect</code> de navegación post-guardado.</td>
+            <td><code>nuevo.tsx</code></td>
+            <td>~10 min</td>
+          </tr>
+          <tr>
+            <td>M9</td>
+            <td>Fix B10: leer la versión desde <code>Constants.expoConfig?.version</code> en pantalla Ajustes.</td>
+            <td><code>ajustes.tsx</code></td>
+            <td>~5 min</td>
+          </tr>
+          <tr>
+            <td>M10</td>
+            <td>Eliminar <code>generateMonthlyReport.ts</code> (legado con SheetJS) para evitar confusión sobre cuál implementación está activa.</td>
+            <td><code>src/services/excel/generateMonthlyReport.ts</code></td>
+            <td>~5 min</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="severity-minor">Prioridad baja</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Mejora</th><th>Estimación</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>M11</td>
+            <td>Soporte real de dark mode — refactorizar <code>StyleSheet</code> de todas las pantallas con <code>useColorScheme()</code>.</td>
+            <td>~3–4h</td>
+          </tr>
+          <tr>
+            <td>M12</td>
+            <td>Accesibilidad en <code>Toast</code> — añadir <code>accessibilityRole="alert"</code> y <code>accessibilityLiveRegion="polite"</code>.</td>
+            <td>~10 min</td>
+          </tr>
+          <tr>
+            <td>M13</td>
+            <td>Fix B11: cambiar <code>contentFit="fill"</code> por <code>contentFit="contain"</code> en el logo de <code>brand-logo.tsx</code>.</td>
+            <td>~5 min</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 8. NUEVAS FUNCIONALIDADES ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">8</div>
+      <h2 class="section-title">Sugerencias de nuevas funcionalidades</h2>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Funcionalidad</th>
+            <th>Valor</th>
+            <th>Complejidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Exportación PDF</strong> del informe mensual</td>
+            <td><span class="badge badge-alta">Alta</span> — más universal que Excel para envío, sin necesidad de plantilla</td>
+            <td><span class="badge badge-media">Media</span></td>
+          </tr>
+          <tr>
+            <td><strong>Notificaciones locales</strong> para recordar el fichaje de salida si lleva más de X horas con entrada abierta</td>
+            <td><span class="badge badge-alta">Alta</span> — evita olvidar fichar</td>
+            <td><span class="badge badge-baja">Baja</span> (expo-notifications)</td>
+          </tr>
+          <tr>
+            <td><strong>Gráfica mensual de horas</strong> por tipo de jornada (barras apiladas)</td>
+            <td><span class="badge badge-media">Media</span> — resumen visual rápido</td>
+            <td><span class="badge badge-media">Media</span></td>
+          </tr>
+          <tr>
+            <td><strong>Filtro por tipo de jornada</strong> en <code>registros.tsx</code></td>
+            <td><span class="badge badge-media">Media</span> — actualmente solo hay búsqueda por texto</td>
+            <td><span class="badge badge-baja">Baja</span></td>
+          </tr>
+          <tr>
+            <td><strong>Backup / Restauración JSON</strong> de todos los registros</td>
+            <td><span class="badge badge-alta">Alta</span> — seguridad del dato local</td>
+            <td><span class="badge badge-baja">Baja</span></td>
+          </tr>
+          <tr>
+            <td><strong>Resumen semanal</strong> además del mensual</td>
+            <td><span class="badge badge-media">Media</span></td>
+            <td><span class="badge badge-media">Media</span></td>
+          </tr>
+          <tr>
+            <td><strong>Campo de notas en QuickEntry</strong> — añadir descripción rápida al fichar</td>
+            <td><span class="badge badge-baja">Baja</span></td>
+            <td><span class="badge badge-baja">Baja</span></td>
+          </tr>
+          <tr>
+            <td><strong>Widget iOS</strong> con el estado del fichaje actual</td>
+            <td><span class="badge badge-media">Media</span></td>
+            <td><span class="badge badge-alta">Alta</span> (expo-widgets, experimental)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 9. MEJORAS DE UI/UX ── -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">9</div>
+      <h2 class="section-title">Sugerencias de mejora de UI/UX</h2>
+    </div>
+
+    <h3>Pantalla principal (<code>index.tsx</code>)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Mejora</th><th>Justificación</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Mostrar un <strong>timer en vivo</strong> desde la hora de entrada (ej. "Llevas 4h 23m") en el área de fichaje rápido</td>
+            <td>Es la información más útil cuando hay una jornada en curso</td>
+          </tr>
+          <tr>
+            <td>Usar <strong>verde para el botón de salida</strong> y rojo para entrada</td>
+            <td>Reduce el riesgo de confusión; actualmente ambos son el mismo rojo de marca</td>
+          </tr>
+          <tr>
+            <td>Añadir <strong>tag de color por tipo de jornada</strong> en las últimas 3 tarjetas (Oficina = azul, Cliente = naranja…)</td>
+            <td>Permite escaneo visual rápido sin leer el texto</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Formulario nuevo registro (<code>nuevo.tsx</code>)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Mejora</th><th>Justificación</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Reemplazar el scroll horizontal de tipos por un <strong>segmented control</strong> o <strong>bottom sheet picker</strong></td>
+            <td>Con 5 opciones en pantalla móvil el scroll horizontal queda apretado y no es evidente para el usuario</td>
+          </tr>
+          <tr>
+            <td>Usar un <strong>time picker nativo</strong> (rueda tipo iOS) para los campos de hora</td>
+            <td>Elimina errores de formato y es la convención de la plataforma iOS</td>
+          </tr>
+          <tr>
+            <td>Mostrar <strong>mensaje de error rojo</strong> bajo el campo <code>horasExtras</code> cuando el valor no es válido</td>
+            <td>Actualmente el error se ignora silenciosamente guardando 0 — el usuario no sabe que ha fallado</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Lista de registros (<code>registros.tsx</code>)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Mejora</th><th>Justificación</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Añadir <strong>swipe a la derecha para editar</strong> (además del swipe a la izquierda para borrar)</td>
+            <td>Más intuitivo que el tap en el card para navegar al detalle</td>
+          </tr>
+          <tr>
+            <td><strong>Cabeceras sticky de mes</strong> en la lista ("Mayo 2026 · 12 jornadas")</td>
+            <td>Mejora la navegación cuando hay muchos registros acumulados</td>
+          </tr>
+          <tr>
+            <td><strong>Filtro rápido por mes</strong> (selector mes/año) complementario a la búsqueda por texto</td>
+            <td>Muy útil en contexto laboral para localizar registros de un mes específico</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Resumen mensual (<code>registro-mensual.tsx</code>)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Mejora</th><th>Justificación</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Vista de calendario</strong> (grid 7×5) con puntos de color por tipo de jornada</td>
+            <td>Da una lectura del mes mucho más inmediata que la lista plana actual</td>
+          </tr>
+          <tr>
+            <td><strong>ActivityIndicator o botón deshabilitado</strong> durante la generación del Excel</td>
+            <td>La generación puede tardar 1–2 s — sin feedback el usuario puede pulsar dos veces</td>
+          </tr>
+          <tr>
+            <td><strong>Desglose de horas por tipo</strong> (Oficina: 40h / Teletrabajo: 16h / Cliente: 8h)</td>
+            <td>Información que actualmente solo está disponible exportando el Excel</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Mejoras generales de UI</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Mejora</th><th>Justificación</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Haptic feedback</strong> en acciones principales (guardar, borrar, fichar)</td>
+            <td><code>Haptics</code> de expo está disponible sin build nativo y da sensación iOS nativa</td>
+          </tr>
+          <tr>
+            <td><strong>Empty states con ilustración</strong> en lista de registros y resumen mensual</td>
+            <td>Actualmente las pantallas vacías simplemente no muestran nada — confuso para usuario nuevo</td>
+          </tr>
+          <tr>
+            <td><strong>Animación de apertura/cierre</strong> en el menú hamburguesa de <code>BrandLogo</code></td>
+            <td>Una transición suave (opacidad + escala) lo haría sentir nativo; ahora aparece/desaparece bruscamente</td>
+          </tr>
+          <tr>
+            <td><strong>Secciones plegables en <code>registro-detalle.tsx</code></strong> usando el componente <code>Collapsible</code> ya existente</td>
+            <td>Con 673 líneas de pantalla y muchos campos, el scroll en iPhone SE es excesivo</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <span>mi-app-ios — Salvagnini Ibérica S.L.</span>
+    <span>Análisis generado por Claude Code · Junio 2026</span>
+  </div>
+
+</main>
+</body>
+</html>

@@ -69,12 +69,6 @@ export interface MonthlyReportInput {
 // Constantes
 // ─────────────────────────────────────────────
 
-/**
- * Si true, las horas en casa/recuperación se suman al total J.
- * Por defecto false: J solo refleja horas trabajadas (oficina/exterior/teletrabajo).
- */
-const INCLUDE_HOME_RECOVERY_IN_TOTAL = false;
-
 const MESES_ES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -191,6 +185,7 @@ function resolveDailyExcelValues(record: MonthlyDayRecord): Record<TargetCol, nu
   const remoteH   = normalizeHours(record.remoteHours);
   const homeH     = normalizeHours(record.homeRecoveryHours);
   const vacH      = normalizeHours(record.vacationPermissionSickHours);
+  const extra25H  = normalizeHours(record.overtime25);
 
   let C: number | undefined;
   let D: number | undefined;
@@ -201,26 +196,23 @@ function resolveDailyExcelValues(record: MonthlyDayRecord): Record<TargetCol, nu
   switch (workdayType) {
     case 'office': {
       E = officeH ?? normalH;
-      J = E;
+      J = ((E ?? 0) + (extra25H ?? 0)) || undefined;
       break;
     }
     case 'external': {
       F = externalH ?? normalH;
-      J = F;
+      J = ((F ?? 0) + (extra25H ?? 0)) || undefined;
       break;
     }
     case 'remote': {
       // Teletrabajo computa en F (exterior), no en E
       F = remoteH ?? normalH;
-      J = F;
+      J = ((F ?? 0) + (extra25H ?? 0)) || undefined;
       break;
     }
     case 'home_recovery': {
-      // D no suma a J por defecto
+      // Horas de recuperación van a D; no cuentan como jornada trabajada en J
       D = homeH ?? normalH;
-      if (D !== undefined && !homeH && !record.homeRecoveryHours) {
-        // normalHours se usó como fallback para home_recovery → va a D
-      }
       break;
     }
     case 'mixed': {
@@ -230,9 +222,9 @@ function resolveDailyExcelValues(record: MonthlyDayRecord): Record<TargetCol, nu
       D = homeH;
       F = externalH ?? remoteH;
       E = officeH;
-      const worked = (officeH ?? 0) + (externalH ?? 0) + (remoteH ?? 0);
-      const total  = INCLUDE_HOME_RECOVERY_IN_TOTAL ? worked + (homeH ?? 0) : worked;
-      J = total > 0 ? total : undefined;
+      // J = horas en casa + exterior + oficina + extras
+      const worked = (homeH ?? 0) + (officeH ?? 0) + (externalH ?? 0) + (remoteH ?? 0);
+      J = (worked + (extra25H ?? 0)) || undefined;
       break;
     }
     case 'vacation_permission_sick': {
@@ -244,7 +236,7 @@ function resolveDailyExcelValues(record: MonthlyDayRecord): Record<TargetCol, nu
       if (normalH) {
         console.warn('[Excel] Registro sin tipo de jornada. Se asigna por defecto a horas exterior (F).', record);
         F = normalH;
-        J = F;
+        J = ((F ?? 0) + (extra25H ?? 0)) || undefined;
       }
       break;
     }
@@ -255,7 +247,7 @@ function resolveDailyExcelValues(record: MonthlyDayRecord): Record<TargetCol, nu
     D,
     E,
     F,
-    G: normalizeHours(record.overtime25),
+    G: extra25H,
     H: normalizeHours(record.overtime30),
     I: normalizeHours(record.overtime50),
     J,
@@ -266,13 +258,6 @@ function resolveDailyExcelValues(record: MonthlyDayRecord): Record<TargetCol, nu
     O: record.overnight,
     P: buildActivityNote(record),
   } as Record<TargetCol, number | string | undefined>;
-
-  console.log('[Excel row write]', {
-    day: record.day,
-    row: 13 + record.day,
-    workdayType,
-    values: result,
-  });
 
   return result;
 }
@@ -468,6 +453,52 @@ function writeHeaderCell(xml: string, ref: string, value: string, colStyles: Rec
   return insertRowInOrder(xml, rowNum, `<row r="${rowNum}">${newCell}</row>`);
 }
 
+/**
+ * Escribe o confirma fórmulas SUM en la fila de totales (fila 45, columnas C–O).
+ * - Si la celda ya tiene fórmula (<f>), la preserva.
+ * - Si está vacía o con valor directo, escribe SUM(Xn14:Xn44).
+ * - Columna P (texto) y columna B nunca se tocan.
+ */
+function writeTotalsRow(xml: string, colStyles: Record<string, string>): string {
+  const TOTALS_ROW = 45;
+  const SUM_COLS = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'] as const;
+
+  const rowRegex = new RegExp(
+    `(<row\\b[^>]*\\sr="${TOTALS_ROW}"[^>]*>)([\\s\\S]*?)(<\\/row>)`,
+  );
+  const rowMatch = rowRegex.exec(xml);
+  let openTag    = `<row r="${TOTALS_ROW}">`;
+  let rowContent = '';
+  let closeTag   = '</row>';
+  if (rowMatch) {
+    openTag    = rowMatch[1];
+    rowContent = rowMatch[2];
+    closeTag   = rowMatch[3];
+  }
+
+  for (const col of SUM_COLS) {
+    const ref     = `${col}${TOTALS_ROW}`;
+    const formula = `SUM(${col}14:${col}44)`;
+    const cellRegex = new RegExp(
+      `<c\\b[^>]*r="${ref}"[^>]*(?:>[\\s\\S]*?<\\/c>|\\/>)`,
+    );
+    const cellMatch = cellRegex.exec(rowContent);
+
+    if (cellMatch) {
+      if (cellMatch[0].includes('<f>')) continue; // fórmula existente: preservar
+      const existingStyle = extractStyleAttr(cellMatch[0]);
+      rowContent = rowContent.replace(cellRegex, () => `<c r="${ref}"${existingStyle}><f>${formula}</f></c>`);
+    } else {
+      const style   = colStyles[col] ?? '';
+      rowContent = insertCellInOrder(rowContent, ref, `<c r="${ref}"${style}><f>${formula}</f></c>`);
+    }
+  }
+
+  const newRowXml = openTag + rowContent + closeTag;
+  if (rowMatch) return xml.replace(rowMatch[0], () => newRowXml);
+  return insertRowInOrder(xml, TOTALS_ROW, newRowXml);
+}
+
 // ─────────────────────────────────────────────
 // Localización de la hoja dentro del ZIP
 // ─────────────────────────────────────────────
@@ -525,14 +556,6 @@ export async function generateMonthlyReportFromTemplate(
   const zip = new JSZip();
   await zip.loadAsync(base64, { base64: true });
 
-  // Verificación de estructura interna
-  const internalFiles = Object.keys(zip.files);
-  console.log('[Template ZIP] Archivos internos del .xlsx:');
-  internalFiles.forEach((f) => console.log(' ', f));
-  const hasMedia    = internalFiles.some((f) => f.startsWith('xl/media'));
-  const hasDrawings = internalFiles.some((f) => f.startsWith('xl/drawings'));
-  const hasSheets   = internalFiles.some((f) => f.startsWith('xl/worksheets'));
-  console.log(`[Template ZIP] xl/media: ${hasMedia} | xl/drawings: ${hasDrawings} | xl/worksheets: ${hasSheets}`);
 
   // 3. Localizar el XML de la hoja
   const sheetPath = await findSheetPath(zip);
@@ -579,7 +602,10 @@ export async function generateMonthlyReportFromTemplate(
     sheetXml = processDataRow(sheetXml, rowNum, colValues, colStyles);
   }
 
-  // 7. El ZIP final sale de JSZip, conservando todos los archivos originales
+  // 7. Fórmulas de totales en fila 45 (preserva las existentes en plantilla; añade las que falten)
+  sheetXml = writeTotalsRow(sheetXml, colStyles);
+
+  // 8. El ZIP final sale de JSZip, conservando todos los archivos originales
   zip.file(sheetPath, sheetXml);
 
   const outputBase64 = await zip.generateAsync({

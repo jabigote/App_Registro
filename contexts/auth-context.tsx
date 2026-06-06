@@ -16,6 +16,12 @@ type AuthContextValue = {
 const STORAGE_KEY = '@salvagnini_usuario';
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+function isUsuario(value: unknown): value is Usuario {
+  if (!value || typeof value !== 'object') return false;
+  const u = value as Record<string, unknown>;
+  return typeof u.nombre === 'string' && typeof u.email === 'string';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +29,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
-        if (raw) setUsuario(JSON.parse(raw) as Usuario);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (isUsuario(parsed)) setUsuario(parsed);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));

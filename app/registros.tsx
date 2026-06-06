@@ -6,6 +6,7 @@ import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { type Registro, useRegistro } from '@/contexts/registro-context';
+import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import { formatFecha } from '@/utils/date';
 
 function getCardDate(r: Registro): string {
@@ -23,6 +24,8 @@ export default function RegistrosScreen() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const { toast, showToast, dismissToast } = useToast();
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const filteredRegistros = useMemo(() => {
     const base = query.trim()
@@ -138,7 +141,7 @@ export default function RegistrosScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar por tipo, cliente o notas…"
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={C.textFaint}
           value={query}
           onChangeText={setQuery}
           clearButtonMode="while-editing"
@@ -195,100 +198,60 @@ export default function RegistrosScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.light.background },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: 4,
-    zIndex: 10,
-    elevation: 6,
-    backgroundColor: Colors.light.background,
-  },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  page: { padding: 24, paddingTop: 16, gap: 14, paddingBottom: 40 },
-  listHeader: { gap: 10, marginBottom: 4 },
-  title: { fontSize: 30, fontWeight: '800', color: Colors.brandDark, marginBottom: 2 },
-  searchContainer: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  searchInput: {
-    padding: 14,
-    fontSize: 15,
-    color: Colors.brandDark,
-  },
-  subtitle: { fontSize: 14, color: '#6b7280' },
-  loadingText: { color: '#6b7280', fontSize: 15, textAlign: 'center' },
-  emptyState: {
-    marginTop: 4,
-    backgroundColor: Colors.light.card,
-    borderRadius: 24,
-    padding: 28,
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
-  },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: Colors.brandDark, marginBottom: 8 },
-  emptyText: { color: '#6b7280', fontSize: 15, textAlign: 'center', lineHeight: 22 },
-  recordCard: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 22,
-    padding: 20,
-    shadowColor: '#000000',
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  recordCardOpen: { borderColor: `${Colors.brand}40` },
-  recordHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  recordTitleCol: { flex: 1, marginRight: 10 },
-  recordTitle: { fontSize: 18, fontWeight: '700', color: Colors.brandDark },
-  recordCliente: { fontSize: 13, color: '#6b7280', marginTop: 2 },
-  recordHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  recordDuration: { fontSize: 14, fontWeight: '700', color: Colors.brand },
-  menuBubble: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.brand,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuBubbleActive: { backgroundColor: Colors.brandDark },
-  menuBubbleText: { fontSize: 12, color: '#ffffff', letterSpacing: 2, lineHeight: 14 },
-  menuBubbleTextActive: { color: '#ffffff' },
-  recordSubtitle: { fontSize: 14, color: '#4b5563' },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: {
-    backgroundColor: `${Colors.brand}18`,
-    borderRadius: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-  },
-  tagText: { fontSize: 12, fontWeight: '700', color: Colors.brand },
-  recordDescription: { fontSize: 14, color: '#6b7280', lineHeight: 20 },
-  cardMenu: {
-    marginTop: 6,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
-  cardMenuItem: { paddingVertical: 11, paddingHorizontal: 4 },
-  cardMenuItemText: { fontSize: 15, fontWeight: '600', color: Colors.brandDark },
-  cardMenuDestructive: { color: '#dc2626' },
-  cardMenuDivider: { height: 1, backgroundColor: '#f3f4f6' },
-});
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: C.background },
+    header: {
+      paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4,
+      zIndex: 10, elevation: 6, backgroundColor: C.background,
+    },
+    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    page: { padding: 24, paddingTop: 16, gap: 14, paddingBottom: 40 },
+    listHeader: { gap: 10, marginBottom: 4 },
+    title: { fontSize: 30, fontWeight: '800', color: C.text, marginBottom: 2 },
+    searchContainer: {
+      backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.border,
+    },
+    searchInput: { padding: 14, fontSize: 15, color: C.text },
+    subtitle: { fontSize: 14, color: C.textMuted },
+    loadingText: { color: C.textMuted, fontSize: 15, textAlign: 'center' },
+    emptyState: {
+      marginTop: 4, backgroundColor: C.card, borderRadius: 24, padding: 28, alignItems: 'center',
+      shadowColor: '#000000', shadowOpacity: 0.06, shadowRadius: 20,
+      shadowOffset: { width: 0, height: 10 }, elevation: 3,
+    },
+    emptyTitle: { fontSize: 20, fontWeight: '700', color: C.text, marginBottom: 8 },
+    emptyText: { color: C.textMuted, fontSize: 15, textAlign: 'center', lineHeight: 22 },
+
+    recordCard: {
+      backgroundColor: C.card, borderRadius: 22, padding: 20,
+      shadowColor: '#000000', shadowOpacity: 0.06, shadowRadius: 20,
+      shadowOffset: { width: 0, height: 10 }, elevation: 3,
+      gap: 8, borderWidth: 1, borderColor: 'transparent',
+    },
+    recordCardOpen: { borderColor: `${Colors.brand}40` },
+    recordHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    recordTitleCol: { flex: 1, marginRight: 10 },
+    recordTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+    recordCliente: { fontSize: 13, color: C.textMuted, marginTop: 2 },
+    recordHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    recordDuration: { fontSize: 14, fontWeight: '700', color: Colors.brand },
+    menuBubble: {
+      width: 32, height: 32, borderRadius: 16,
+      backgroundColor: Colors.brand, justifyContent: 'center', alignItems: 'center',
+    },
+    menuBubbleActive: { backgroundColor: Colors.brandDark },
+    menuBubbleText: { fontSize: 12, color: '#ffffff', letterSpacing: 2, lineHeight: 14 },
+    menuBubbleTextActive: { color: '#ffffff' },
+    recordSubtitle: { fontSize: 14, color: C.textSecondary },
+    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    tag: { backgroundColor: `${Colors.brand}18`, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
+    tagText: { fontSize: 12, fontWeight: '700', color: Colors.brand },
+    recordDescription: { fontSize: 14, color: C.textMuted, lineHeight: 20 },
+    cardMenu: { marginTop: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.separator },
+    cardMenuItem: { paddingVertical: 11, paddingHorizontal: 4 },
+    cardMenuItemText: { fontSize: 15, fontWeight: '600', color: C.text },
+    cardMenuDestructive: { color: '#dc2626' },
+    cardMenuDivider: { height: 1, backgroundColor: C.separator },
+  });
+}

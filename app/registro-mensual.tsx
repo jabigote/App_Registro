@@ -1,14 +1,16 @@
-import { useState } from 'react';
-import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { type Registro, useRegistro } from '@/contexts/registro-context';
+import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import {
   type MonthlyDayRecord,
   type WorkdayType,
+  normalizeHours,
   shareMonthlyReportFromTemplate,
 } from '@/src/services/excel/generateMonthlyReportFromTemplate';
 
@@ -17,13 +19,10 @@ const MESES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
-function durationToHours(duracion: string): number {
+function durationToMinutes(duracion: string): number {
   const h = duracion.match(/(\d+)h/);
   const m = duracion.match(/(\d+)m/);
-  const hours = h ? parseInt(h[1]) : 0;
-  const mins = m ? parseInt(m[1]) : 0;
-  // Redondea a la media hora más cercana: 8h20m → 8.5, 8h10m → 8, 9h → 9
-  return Math.round((hours + mins / 60) * 2) / 2;
+  return (h ? parseInt(h[1]) : 0) * 60 + (m ? parseInt(m[1]) : 0);
 }
 
 function getRegistroDate(r: Registro): Date {
@@ -36,24 +35,63 @@ function getDayFromRegistro(r: Registro): number {
 }
 
 function totalHorasMes(registros: Registro[]): string {
-  let total = 0;
-  for (const r of registros) total += durationToHours(r.duracion);
-  const h = Math.floor(total);
-  const m = Math.round((total - h) * 60);
+  const totalMin = registros.reduce((sum, r) => sum + durationToMinutes(r.duracion), 0);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function fmtH(h: number | undefined): string {
+  if (!h || h <= 0) return '—';
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  return mm > 0 ? `${hh}:${String(mm).padStart(2, '0')}` : `${hh}h`;
+}
+
+function getExcelCols(rec: MonthlyDayRecord) {
+  const type    = rec.workdayType;
+  const normalH = normalizeHours(rec.normalHours);
+  const homeH   = normalizeHours(rec.homeRecoveryHours);
+  const extH    = normalizeHours(rec.externalHours);
+  const extra25 = normalizeHours(rec.overtime25);
+
+  let C: number | undefined;
+  let D: number | undefined;
+  let E: number | undefined;
+  let F: number | undefined;
+
+  switch (type) {
+    case 'office':                   E = normalH; break;
+    case 'external':
+    case 'remote':                   F = normalH; break;
+    case 'home_recovery':            D = normalH; break;
+    case 'mixed':                    D = homeH; F = extH; break;
+    case 'vacation_permission_sick': C = normalH; break;
+  }
+
+  const worked = (C ?? 0) + (D ?? 0) + (E ?? 0) + (F ?? 0);
+  const J = worked + (extra25 ?? 0) || undefined;
+
+  return {
+    C, D, E, F, G: extra25, J,
+    M: rec.halfDiet  ? 1 : undefined,
+    N: rec.fullDiet  ? 1 : undefined,
+    O: rec.overnight ? 1 : undefined,
+    P: [rec.clientName, rec.notes].filter(Boolean).join(' · ') || undefined,
+  };
 }
 
 export default function RegistroMensualScreen() {
   const { registros } = useRegistro();
   const { usuario } = useAuth();
   const { toast, showToast, dismissToast } = useToast();
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [exporting, setExporting] = useState(false);
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth()); // 0-indexed
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const registrosDelMes = registros.filter((r) => {
     const d = getRegistroDate(r);
@@ -61,6 +99,8 @@ export default function RegistroMensualScreen() {
   });
 
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+
+  const [showPreview, setShowPreview] = useState(false);
 
   const prevMonth = () => {
     if (month === 0) { setMonth(11); setYear((y) => y - 1); }
@@ -73,8 +113,8 @@ export default function RegistroMensualScreen() {
     else setMonth((m) => m + 1);
   };
 
-  const totalHoras = totalHorasMes(registrosDelMes);
-  const totalDietas = registrosDelMes.filter((r) => r.dieta && r.dieta !== 'ninguna').length;
+  const totalHoras    = totalHorasMes(registrosDelMes);
+  const totalDietas   = registrosDelMes.filter((r) => r.dieta && r.dieta !== 'ninguna').length;
   const totalPernoctas = registrosDelMes.filter((r) => r.pernocta).length;
 
   const TIPO_MAP: Record<string, WorkdayType> = {
@@ -85,31 +125,38 @@ export default function RegistroMensualScreen() {
     'Teletrabajo': 'remote',
   };
 
+  const buildRecords = (): MonthlyDayRecord[] =>
+    registrosDelMes.map((reg) => {
+      const extras  = reg.horasExtras && reg.horasExtras > 0 ? reg.horasExtras : 0;
+      const baseMins = Math.max(0, durationToMinutes(reg.duracion) - Math.round(extras * 60));
+      const baseH   = baseMins > 0 ? baseMins / 60 : undefined;
+      return {
+        day:               getDayFromRegistro(reg),
+        workdayType:       TIPO_MAP[reg.titulo] as WorkdayType | undefined,
+        normalHours:       reg.titulo !== 'Mixto' ? baseH : undefined,
+        homeRecoveryHours: reg.homeRecoveryHours,
+        externalHours:     reg.externalHours,
+        overtime25:        extras > 0 ? extras : undefined,
+        halfDiet:          reg.dieta === 'media'    ? 1 : undefined,
+        fullDiet:          reg.dieta === 'completa' ? 1 : undefined,
+        overnight:         reg.pernocta ? 1 : undefined,
+        clientName:        reg.cliente || undefined,
+        notes:             reg.descripcion || undefined,
+      };
+    });
+
   const handleExportar = async () => {
     if (exporting) return;
     setExporting(true);
+    setShowPreview(false);
+    // Espera a que termine la animación de cierre del modal antes de presentar el share sheet
+    await new Promise<void>((r) => setTimeout(r, 400));
     try {
-      const records: MonthlyDayRecord[] = registrosDelMes.map((reg) => ({
-        day:          getDayFromRegistro(reg),
-        workdayType:  TIPO_MAP[reg.titulo] as WorkdayType | undefined,
-        // Para Mixto se usan los campos de desglose; para el resto, duracion como normalHours
-        normalHours:       reg.titulo !== 'Mixto' ? reg.duracion : undefined,
-        homeRecoveryHours: reg.homeRecoveryHours,
-        externalHours:     reg.externalHours,
-        // horasExtras se mapea a overtime25 (+25 %)
-        overtime25: reg.horasExtras && reg.horasExtras > 0 ? reg.horasExtras : undefined,
-        halfDiet:  reg.dieta === 'media'    ? 1 : undefined,
-        fullDiet:  reg.dieta === 'completa' ? 1 : undefined,
-        overnight: reg.pernocta ? 1 : undefined,
-        clientName: reg.cliente || undefined,
-        notes:      reg.descripcion || undefined,
-      }));
-
       await shareMonthlyReportFromTemplate({
         year,
-        month: month + 1, // el servicio usa 1–12; aquí month es 0-indexed
+        month:        month + 1,
         employeeName: usuario?.nombre ?? 'Empleado',
-        records,
+        records:      buildRecords(),
       });
     } catch (e) {
       Alert.alert('Error', 'No se pudo generar el reporte. Inténtalo de nuevo.');
@@ -117,6 +164,14 @@ export default function RegistroMensualScreen() {
     } finally {
       setExporting(false);
     }
+  };
+
+  const handleVerPrevia = () => {
+    if (registrosDelMes.length === 0) {
+      Alert.alert('Sin datos', 'No hay jornadas registradas este mes.');
+      return;
+    }
+    setShowPreview(true);
   };
 
   return (
@@ -171,10 +226,9 @@ export default function RegistroMensualScreen() {
           </View>
         ) : (
           <View style={styles.table}>
-            {/* Cabecera tabla */}
             <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={[styles.tableCell, styles.tableCellDay, styles.tableHeaderText]}>Día</Text>
-              <Text style={[styles.tableCell, styles.tableCellTipo, styles.tableHeaderText]}>Tipo</Text>
+              <Text style={[styles.tableCell, styles.tableCellDay,   styles.tableHeaderText]}>Día</Text>
+              <Text style={[styles.tableCell, styles.tableCellTipo,  styles.tableHeaderText]}>Tipo</Text>
               <Text style={[styles.tableCell, styles.tableCellHoras, styles.tableHeaderText]}>Horas</Text>
               <Text style={[styles.tableCell, styles.tableCellDieta, styles.tableHeaderText]}>Dieta</Text>
               <Text style={[styles.tableCell, styles.tableCellExtra, styles.tableHeaderText]}>Extra</Text>
@@ -215,11 +269,11 @@ export default function RegistroMensualScreen() {
         {/* Botón exportar */}
         <Pressable
           style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
-          onPress={handleExportar}
+          onPress={handleVerPrevia}
           disabled={exporting}
         >
           <Text style={styles.exportBtnText}>
-            {exporting ? 'Generando…' : 'Exportar / Compartir Excel'}
+            {exporting ? 'Generando…' : 'Ver previa / Exportar Excel'}
           </Text>
         </Pressable>
 
@@ -227,106 +281,222 @@ export default function RegistroMensualScreen() {
           Se abrirá el menú de compartir de iOS para enviar por correo, guardar en Archivos o cualquier otra opción.
         </Text>
       </ScrollView>
+
+      {/* ── Modal de vista previa (columnas de la plantilla Excel) ── */}
+      <Modal
+        visible={showPreview}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowPreview(false)}
+      >
+        <SafeAreaView style={styles.pvSafe}>
+          {/* Cabecera */}
+          <View style={styles.pvHead}>
+            <Text style={styles.pvHeadTitle}>Vista previa · plantilla Excel</Text>
+            <Text style={styles.pvHeadSub}>{MESES[month]} {year} · {usuario?.nombre ?? 'Empleado'}</Text>
+          </View>
+
+          {/* Tabla con las columnas reales de la plantilla (B–P) */}
+          <ScrollView style={{ flex: 1 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View>
+                {/* Cabecera: letra de columna + etiqueta */}
+                <View style={[styles.pvRow, styles.pvHeaderRow]}>
+                  {[
+                    { l: 'B',  lb: 'Día',  s: styles.pvWB },
+                    { l: 'C',  lb: 'Vac.', s: styles.pvWC },
+                    { l: 'D',  lb: 'Rec.', s: styles.pvWD },
+                    { l: 'E',  lb: 'Of.',  s: styles.pvWE },
+                    { l: 'F',  lb: 'Ext.', s: styles.pvWF },
+                    { l: 'G',  lb: '+25%', s: styles.pvWG },
+                    { l: 'J',  lb: 'Tot.', s: styles.pvWJ },
+                    { l: 'M',  lb: '½D',   s: styles.pvWM },
+                    { l: 'N',  lb: 'D.',   s: styles.pvWN },
+                    { l: 'O',  lb: 'Pn.',  s: styles.pvWO },
+                    { l: 'P',  lb: 'Act.', s: styles.pvWP },
+                  ].map(({ l, lb, s }) => (
+                    <View key={l} style={[styles.pvCell, s, styles.pvHeadCell]}>
+                      <Text style={styles.pvColLetter}>{l}</Text>
+                      <Text style={styles.pvColLabel}>{lb}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Filas de datos */}
+                {buildRecords()
+                  .slice()
+                  .sort((a, b) => a.day - b.day)
+                  .map((rec) => {
+                    const cols = getExcelCols(rec);
+                    return (
+                      <View key={rec.day} style={styles.pvRow}>
+                        <Text style={[styles.pvCell, styles.pvWB, styles.pvDayTxt]}>
+                          {String(rec.day).padStart(2, '0')}
+                        </Text>
+                        <Text style={[styles.pvCell, styles.pvWC, styles.pvHourTxt]}>{fmtH(cols.C)}</Text>
+                        <Text style={[styles.pvCell, styles.pvWD, styles.pvHourTxt]}>{fmtH(cols.D)}</Text>
+                        <Text style={[styles.pvCell, styles.pvWE, styles.pvHourTxt]}>{fmtH(cols.E)}</Text>
+                        <Text style={[styles.pvCell, styles.pvWF, styles.pvHourTxt]}>{fmtH(cols.F)}</Text>
+                        <Text style={[styles.pvCell, styles.pvWG, styles.pvHourTxt]}>{fmtH(cols.G)}</Text>
+                        <Text style={[styles.pvCell, styles.pvWJ, styles.pvTotalTxt]}>{fmtH(cols.J)}</Text>
+                        <Text style={[styles.pvCell, styles.pvWM, styles.pvCountTxt]}>{cols.M ? '½' : '—'}</Text>
+                        <Text style={[styles.pvCell, styles.pvWN, styles.pvCountTxt]}>{cols.N ? '1' : '—'}</Text>
+                        <Text style={[styles.pvCell, styles.pvWO, styles.pvCountTxt]}>{cols.O ? '✓' : '—'}</Text>
+                        <Text style={[styles.pvCell, styles.pvWP, styles.pvActTxt]} numberOfLines={1}>
+                          {cols.P ?? '—'}
+                        </Text>
+                      </View>
+                    );
+                  })}
+              </View>
+            </ScrollView>
+          </ScrollView>
+
+          {/* Totales */}
+          <View style={styles.pvSummary}>
+            <Text style={styles.pvSummaryTxt}>
+              {registrosDelMes.length} jornadas · {totalHoras}
+              {totalDietas > 0    ? ` · ${totalDietas} dietas`      : ''}
+              {totalPernoctas > 0 ? ` · ${totalPernoctas} pernoctas` : ''}
+            </Text>
+          </View>
+
+          {/* Acciones */}
+          <View style={styles.pvFooter}>
+            <Pressable style={styles.pvCancelBtn} onPress={() => setShowPreview(false)}>
+              <Text style={styles.pvCancelTxt}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.pvExportBtn, exporting && styles.exportBtnDisabled]}
+              onPress={handleExportar}
+              disabled={exporting}
+            >
+              <Text style={styles.exportBtnText}>{exporting ? 'Generando…' : 'Exportar'}</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
       <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.light.background },
-  header: {
-    paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4,
-    zIndex: 10, elevation: 6, backgroundColor: Colors.light.background,
-  },
-  page: { padding: 24, paddingTop: 16, gap: 18, paddingBottom: 40 },
-  title: { fontSize: 30, fontWeight: '800', color: Colors.brandDark },
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: C.background },
+    header: {
+      paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4,
+      zIndex: 10, elevation: 6, backgroundColor: C.background,
+    },
+    page: { padding: 24, paddingTop: 16, gap: 18, paddingBottom: 40 },
+    title: { fontSize: 30, fontWeight: '800', color: C.text },
 
-  monthNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.light.card,
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  monthBtn: { padding: 4 },
-  monthBtnDisabled: { opacity: 0.25 },
-  monthBtnText: { fontSize: 28, color: Colors.brand, fontWeight: '700', lineHeight: 30 },
-  monthBtnTextDisabled: { color: '#9ca3af' },
-  monthLabel: { fontSize: 18, fontWeight: '700', color: Colors.brandDark },
+    monthNav: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: C.card, borderRadius: 18,
+      paddingVertical: 14, paddingHorizontal: 20,
+      borderWidth: 1, borderColor: C.border,
+    },
+    monthBtn: { padding: 4 },
+    monthBtnDisabled: { opacity: 0.25 },
+    monthBtnText: { fontSize: 28, color: Colors.brand, fontWeight: '700', lineHeight: 30 },
+    monthBtnTextDisabled: { color: C.textFaint },
+    monthLabel: { fontSize: 18, fontWeight: '700', color: C.text },
 
-  summaryRow: { flexDirection: 'row', gap: 10 },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    padding: 14,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    gap: 4,
-  },
-  summaryValue: { fontSize: 20, fontWeight: '800', color: Colors.brand },
-  summaryLabel: { fontSize: 11, fontWeight: '600', color: '#6b7280' },
+    summaryRow: { flexDirection: 'row', gap: 10 },
+    summaryCard: {
+      flex: 1, backgroundColor: C.card, borderRadius: 16, padding: 14,
+      alignItems: 'center', borderWidth: 1, borderColor: C.border, gap: 4,
+    },
+    summaryValue: { fontSize: 20, fontWeight: '800', color: Colors.brand },
+    summaryLabel: { fontSize: 11, fontWeight: '600', color: C.textMuted },
 
-  emptyState: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 22,
-    padding: 28,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.brandDark, marginBottom: 6 },
-  emptyText: { color: '#6b7280', fontSize: 14, textAlign: 'center' },
+    emptyState: {
+      backgroundColor: C.card, borderRadius: 22, padding: 28,
+      alignItems: 'center', borderWidth: 1, borderColor: C.border,
+    },
+    emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text, marginBottom: 6 },
+    emptyText: { color: C.textMuted, fontSize: 14, textAlign: 'center' },
 
-  table: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 18,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  tableHeader: {
-    backgroundColor: `${Colors.brand}10`,
-    paddingVertical: 10,
-  },
-  tableHeaderText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.brand,
-    textTransform: 'uppercase',
-  },
-  tableCell: { paddingHorizontal: 4 },
-  tableCellDay: { width: 32 },
-  tableCellTipo: { flex: 1 },
-  tableCellHoras: { width: 56, textAlign: 'right' },
-  tableCellDieta: { width: 44, textAlign: 'center' },
-  tableCellExtra: { width: 44, textAlign: 'right' },
-  tableCellDayText: { fontSize: 13, fontWeight: '700', color: Colors.brandDark },
-  tableTipoText: { fontSize: 13, fontWeight: '600', color: Colors.brandDark },
-  tableClienteText: { fontSize: 11, color: '#6b7280', marginTop: 1 },
-  tableCellValueText: { fontSize: 13, color: '#4b5563', fontWeight: '600' },
+    table: {
+      backgroundColor: C.card, borderRadius: 18,
+      overflow: 'hidden', borderWidth: 1, borderColor: C.border,
+    },
+    tableRow: {
+      flexDirection: 'row', alignItems: 'center',
+      borderBottomWidth: 1, borderBottomColor: C.separator,
+      paddingVertical: 10, paddingHorizontal: 12,
+    },
+    tableHeader: { backgroundColor: `${Colors.brand}10`, paddingVertical: 10 },
+    tableHeaderText: { fontSize: 11, fontWeight: '700', color: Colors.brand, textTransform: 'uppercase' },
+    tableCell: { paddingHorizontal: 4 },
+    tableCellDay:   { width: 32 },
+    tableCellTipo:  { flex: 1 },
+    tableCellHoras: { width: 56, textAlign: 'right' },
+    tableCellDieta: { width: 44, textAlign: 'center' },
+    tableCellExtra: { width: 44, textAlign: 'right' },
+    tableCellDayText:   { fontSize: 13, fontWeight: '700', color: C.text },
+    tableTipoText:      { fontSize: 13, fontWeight: '600', color: C.text },
+    tableClienteText:   { fontSize: 11, color: C.textMuted, marginTop: 1 },
+    tableCellValueText: { fontSize: 13, color: C.textSecondary, fontWeight: '600' },
 
-  exportBtn: {
-    backgroundColor: Colors.brand,
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  exportBtnDisabled: { backgroundColor: '#9ca3af' },
-  exportBtnText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
-  exportHint: { fontSize: 12, color: '#9ca3af', textAlign: 'center', lineHeight: 18 },
-});
+    exportBtn: {
+      backgroundColor: Colors.brand, borderRadius: 16,
+      paddingVertical: 16, alignItems: 'center', marginTop: 4,
+    },
+    exportBtnDisabled: { backgroundColor: '#9ca3af' },
+    exportBtnText:     { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+    exportHint:        { fontSize: 12, color: C.textFaint, textAlign: 'center', lineHeight: 18 },
+
+    // ── Vista previa modal ──
+    pvSafe: { flex: 1, backgroundColor: C.background },
+    pvHead: {
+      paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12,
+      borderBottomWidth: 1, borderBottomColor: C.border,
+    },
+    pvHeadTitle: { fontSize: 18, fontWeight: '800', color: C.text },
+    pvHeadSub:   { fontSize: 12, color: C.textMuted, marginTop: 2 },
+
+    pvRow: {
+      flexDirection: 'row', alignItems: 'center',
+      borderBottomWidth: 1, borderBottomColor: C.separator,
+      paddingVertical: 8, paddingHorizontal: 10,
+    },
+    pvHeaderRow: { backgroundColor: `${Colors.brand}10`, paddingVertical: 6 },
+    pvHeadCell:  { alignItems: 'center' },
+    pvCell:      { paddingHorizontal: 3 },
+    pvColLetter: { fontSize: 9, fontWeight: '800', color: Colors.brand, textAlign: 'center' },
+    pvColLabel:  { fontSize: 8, fontWeight: '600', color: C.textMuted, textAlign: 'center', textTransform: 'uppercase' },
+
+    // anchos de columna
+    pvWB: { width: 30 },
+    pvWC: { width: 36 },
+    pvWD: { width: 36 },
+    pvWE: { width: 36 },
+    pvWF: { width: 36 },
+    pvWG: { width: 42 },
+    pvWJ: { width: 46 },
+    pvWM: { width: 30 },
+    pvWN: { width: 28 },
+    pvWO: { width: 28 },
+    pvWP: { width: 72 },
+
+    // estilos de texto por tipo de celda
+    pvDayTxt:   { fontSize: 13, fontWeight: '700', color: C.text,          textAlign: 'center' },
+    pvHourTxt:  { fontSize: 12, color: C.textSecondary,                    textAlign: 'right'  },
+    pvTotalTxt: { fontSize: 12, fontWeight: '700', color: C.text,          textAlign: 'right'  },
+    pvCountTxt: { fontSize: 12, color: C.textSecondary,                    textAlign: 'center' },
+    pvActTxt:   { fontSize: 11, color: C.textMuted },
+
+    pvSummary:    { padding: 12, backgroundColor: C.subtleBg, borderTopWidth: 1, borderTopColor: C.border },
+    pvSummaryTxt: { fontSize: 12, color: C.textMuted, textAlign: 'center', fontWeight: '600' },
+    pvFooter:     { flexDirection: 'row', padding: 16, gap: 12, borderTopWidth: 1, borderTopColor: C.border },
+    pvCancelBtn:  {
+      flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center',
+      backgroundColor: C.separator, borderWidth: 1, borderColor: C.border,
+    },
+    pvCancelTxt:  { fontSize: 16, fontWeight: '600', color: C.text },
+    pvExportBtn:  { flex: 2, borderRadius: 14, paddingVertical: 14, alignItems: 'center', backgroundColor: Colors.brand },
+  });
+}

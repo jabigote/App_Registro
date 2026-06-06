@@ -1,43 +1,23 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ClienteSearchInput } from '@/components/cliente-search-input';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
-import { type Dieta, useRegistro } from '@/contexts/registro-context';
+import { useRegistro } from '@/contexts/registro-context';
+import { type ThemeColors, useTheme } from '@/hooks/use-theme';
+import { DIETA_LABEL, DIETA_OPTS, TIPOS_JORNADA, needsCliente, useJornadaForm } from '@/hooks/useJornadaForm';
 import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
-import { fmtDuration, parseHoursInput, parseTime, STANDARD_END_MIN } from '@/utils/time';
-
-const TIPOS_JORNADA = [
-  { value: 'Oficina',     label: 'Oficina' },
-  { value: 'Cliente',     label: 'Cliente / Exterior' },
-  { value: 'Teletrabajo', label: 'Teletrabajo' },
-  { value: 'Mixto',       label: 'Mixto (casa + cliente)' },
-  { value: 'Casa',        label: 'Casa (recuperación de horas)' },
-];
-
-const DIETA_OPTS: { value: Dieta; label: string }[] = [
-  { value: 'ninguna', label: 'Sin dieta' },
-  { value: 'media', label: '½ Dieta' },
-  { value: 'completa', label: 'Dieta completa' },
-];
-
-const DIETA_LABEL: Record<Dieta, string> = {
-  ninguna: 'Sin dieta',
-  media: '½ Dieta',
-  completa: 'Dieta completa',
-};
-
-function needsCliente(tipo: string) {
-  return tipo === 'Cliente' || tipo === 'Mixto';
-}
+import { parseHoursInput } from '@/utils/time';
 
 export default function RegistroDetalleScreen() {
   const { id, editMode: editParam } = useLocalSearchParams<{ id: string; editMode?: string }>();
   const router = useRouter();
   const { registros, updateRegistro, deleteRegistro } = useRegistro();
   const { toast, showToast, dismissToast } = useToast();
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const [editMode, setEditMode] = useState(editParam === '1');
   const [menuVisible, setMenuVisible] = useState(false);
@@ -48,67 +28,51 @@ export default function RegistroDetalleScreen() {
   const [fecha, setFecha] = useState(
     registro?.fecha ?? registro?.createdAt?.slice(0, 10) ?? today
   );
-  const [tipoJornada, setTipoJornada] = useState(registro?.titulo ?? '');
-  const [tipoOpen, setTipoOpen] = useState(false);
-  const [nombreCliente, setNombreCliente] = useState(registro?.cliente ?? '');
-  const [inicio1, setInicio1] = useState(registro?.inicio ?? '08:00');
-  const [fin1, setFin1] = useState(registro?.fin1 ?? registro?.fin ?? '13:00');
-  const [inicio2, setInicio2] = useState(registro?.inicio2 ?? '');
-  const [fin2, setFin2] = useState(registro?.inicio2 ? (registro?.fin ?? '17:00') : '');
-  const [homeRecoveryInput, setHomeRecoveryInput] = useState(registro?.homeRecoveryHours ?? '');
-  const [externalHoursInput, setExternalHoursInput] = useState(registro?.externalHours ?? '');
-  const [dieta, setDieta] = useState<Dieta>(registro?.dieta ?? 'ninguna');
-  const [pernocta, setPernocta] = useState(registro?.pernocta ?? false);
-  const [horasExtras, setHorasExtras] = useState(String(registro?.horasExtras ?? 0));
-  const [descripcion, setDescripcion] = useState(registro?.descripcion ?? '');
 
-  const isMixed = tipoJornada === 'Mixto';
+  const {
+    tipoJornada, setTipoJornada,
+    tipoOpen, setTipoOpen,
+    nombreCliente, setNombreCliente,
+    inicio1, setInicio1,
+    fin1, setFin1,
+    inicio2, setInicio2,
+    fin2, setFin2,
+    homeRecoveryInput, setHomeRecoveryInput,
+    externalHoursInput, setExternalHoursInput,
+    dieta, setDieta,
+    pernocta, setPernocta,
+    horasExtras, setHorasExtras,
+    descripcion, setDescripcion,
+    isMixed,
+    duracion,
+    mixedDuration,
+    effectiveDuration,
+    canSave,
+  } = useJornadaForm({
+    initialTipo:          registro?.titulo ?? '',
+    initialCliente:       registro?.cliente ?? '',
+    initialInicio1:       registro?.inicio ?? '08:00',
+    initialFin1:          registro?.fin1 ?? registro?.fin ?? '13:00',
+    initialInicio2:       registro?.inicio2 ?? '',
+    initialFin2:          registro?.inicio2 ? (registro?.fin ?? '17:00') : '',
+    initialHomeRecovery:  registro?.homeRecoveryHours ?? '',
+    initialExternalHours: registro?.externalHours ?? '',
+    initialDieta:         registro?.dieta ?? 'ninguna',
+    initialPernocta:      registro?.pernocta ?? false,
+    initialHorasExtras:   String(registro?.horasExtras ?? 0),
+    initialDescripcion:   registro?.descripcion ?? '',
+    skipFirstExtrasSync:  true,
+  });
 
-  // Duración para tipos con tramos de horario (no Mixto)
-  const { duracion, suggestedExtras } = useMemo(() => {
-    if (isMixed) return { duracion: null, suggestedExtras: null };
-    const s1 = parseTime(inicio1); const e1 = parseTime(fin1);
-    if (s1 === null || e1 === null || e1 <= s1) return { duracion: null, suggestedExtras: null };
-    let total = e1 - s1;
-    let lastEnd = e1;
-
-    const has2 = inicio2.trim().length > 0 || fin2.trim().length > 0;
-    if (has2) {
-      const s2 = parseTime(inicio2); const e2 = parseTime(fin2);
-      if (s2 === null || e2 === null || e2 <= s2) return { duracion: null, suggestedExtras: null };
-      total += e2 - s2;
-      lastEnd = e2;
-    }
-
-    const extraMin = Math.max(0, lastEnd - STANDARD_END_MIN);
-    return { duracion: fmtDuration(total), suggestedExtras: Math.round(extraMin / 60 * 10) / 10 };
-  }, [isMixed, inicio1, fin1, inicio2, fin2]);
-
-  // Duración para Mixto
-  const mixedDuration = useMemo(() => {
-    if (!isMixed) return null;
-    const homeMin = parseHoursInput(homeRecoveryInput) ?? 0;
-    const extMin  = parseHoursInput(externalHoursInput) ?? 0;
-    const total   = homeMin + extMin;
-    return total > 0 ? fmtDuration(total) : null;
-  }, [isMixed, homeRecoveryInput, externalHoursInput]);
-
-  const effectiveDuration = isMixed ? mixedDuration : duracion;
-
-  // Actualiza horas extras al cambiar los horarios, pero NO en el primer render
-  // (para no sobreescribir el valor guardado al abrir el detalle)
-  const mountedRef = useRef(false);
-  useEffect(() => {
-    if (!mountedRef.current) { mountedRef.current = true; return; }
-    if (!isMixed && suggestedExtras !== null) {
-      setHorasExtras(suggestedExtras > 0 ? String(suggestedExtras) : '0');
-    }
-  }, [isMixed, suggestedExtras]);
-
-  const canSave =
-    tipoJornada.length > 0 &&
-    (!needsCliente(tipoJornada) || nombreCliente.trim().length > 0) &&
-    effectiveDuration !== null;
+  // Definida aquí como closure para acceder a los styles dinámicos
+  function Row({ label, value }: { label: string; value: string }) {
+    return (
+      <View style={styles.row}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.rowValue}>{value}</Text>
+      </View>
+    );
+  }
 
   if (!registro) {
     return (
@@ -143,42 +107,46 @@ export default function RegistroDetalleScreen() {
 
   const handleGuardar = async () => {
     if (!canSave || !effectiveDuration) return;
-    if (isMixed) {
-      await updateRegistro(id!, {
-        titulo:   tipoJornada,
-        cliente:  nombreCliente.trim() || undefined,
-        fecha,
-        inicio:   '',
-        fin:      '',
-        duracion: effectiveDuration,
-        homeRecoveryHours: homeRecoveryInput.trim() || undefined,
-        externalHours:     externalHoursInput.trim() || undefined,
-        dieta,
-        pernocta,
-        horasExtras: Number(horasExtras) || 0,
-        descripcion: descripcion.trim(),
-      });
-    } else {
-      const has2 = inicio2.trim().length > 0 && fin2.trim().length > 0;
-      await updateRegistro(id!, {
-        titulo:   tipoJornada,
-        cliente:  needsCliente(tipoJornada) ? nombreCliente.trim() : undefined,
-        fecha,
-        inicio:   inicio1,
-        fin1:     fin1,
-        inicio2:  has2 ? inicio2 : undefined,
-        fin:      has2 ? fin2 : fin1,
-        duracion: effectiveDuration,
-        homeRecoveryHours: undefined,
-        externalHours:     undefined,
-        dieta,
-        pernocta,
-        horasExtras: Number(horasExtras) || 0,
-        descripcion: descripcion.trim(),
-      });
+    try {
+      if (isMixed) {
+        await updateRegistro(id!, {
+          titulo:   tipoJornada,
+          cliente:  nombreCliente.trim() || undefined,
+          fecha,
+          inicio:   '',
+          fin:      '',
+          duracion: effectiveDuration,
+          homeRecoveryHours: homeRecoveryInput.trim() || undefined,
+          externalHours:     externalHoursInput.trim() || undefined,
+          dieta,
+          pernocta,
+          horasExtras: (parseHoursInput(horasExtras) ?? 0) / 60,
+          descripcion: descripcion.trim(),
+        });
+      } else {
+        const has2 = inicio2.trim().length > 0 && fin2.trim().length > 0;
+        await updateRegistro(id!, {
+          titulo:   tipoJornada,
+          cliente:  needsCliente(tipoJornada) ? nombreCliente.trim() : undefined,
+          fecha,
+          inicio:   inicio1,
+          fin1:     fin1,
+          inicio2:  has2 ? inicio2 : undefined,
+          fin:      has2 ? fin2 : fin1,
+          duracion: effectiveDuration,
+          homeRecoveryHours: undefined,
+          externalHours:     undefined,
+          dieta,
+          pernocta,
+          horasExtras: (parseHoursInput(horasExtras) ?? 0) / 60,
+          descripcion: descripcion.trim(),
+        });
+      }
+      setEditMode(false);
+      showToast('Cambios guardados');
+    } catch {
+      showToast('Error al guardar. Inténtalo de nuevo.');
     }
-    setEditMode(false);
-    showToast('Cambios guardados');
   };
 
   const dietaLabel = DIETA_LABEL[registro.dieta ?? 'ninguna'];
@@ -200,7 +168,7 @@ export default function RegistroDetalleScreen() {
         <View style={styles.topBarRight}>
           {editMode ? (
             <Pressable onPress={() => setEditMode(false)} style={styles.backBtn}>
-              <Text style={[styles.backBtnText, { color: '#6b7280' }]}>Cancelar</Text>
+              <Text style={[styles.backBtnText, { color: C.textMuted }]}>Cancelar</Text>
             </Pressable>
           ) : (
             <>
@@ -346,7 +314,7 @@ export default function RegistroDetalleScreen() {
                     onChangeText={setInicio1}
                     keyboardType="numbers-and-punctuation"
                     placeholder="08:00"
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={C.textFaint}
                   />
                   <Text style={styles.timeSep}>→</Text>
                   <TextInput
@@ -355,7 +323,7 @@ export default function RegistroDetalleScreen() {
                     onChangeText={setFin1}
                     keyboardType="numbers-and-punctuation"
                     placeholder="13:00"
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={C.textFaint}
                   />
                 </View>
 
@@ -367,7 +335,7 @@ export default function RegistroDetalleScreen() {
                     onChangeText={setInicio2}
                     keyboardType="numbers-and-punctuation"
                     placeholder="14:00"
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={C.textFaint}
                   />
                   <Text style={styles.timeSep}>→</Text>
                   <TextInput
@@ -376,7 +344,7 @@ export default function RegistroDetalleScreen() {
                     onChangeText={setFin2}
                     keyboardType="numbers-and-punctuation"
                     placeholder="17:00"
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={C.textFaint}
                   />
                 </View>
 
@@ -398,7 +366,7 @@ export default function RegistroDetalleScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="p.ej. 2:00 o 2"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={C.textFaint}
                   value={homeRecoveryInput}
                   onChangeText={setHomeRecoveryInput}
                   keyboardType="numbers-and-punctuation"
@@ -408,7 +376,7 @@ export default function RegistroDetalleScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="p.ej. 6:30 o 6.5"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={C.textFaint}
                   value={externalHoursInput}
                   onChangeText={setExternalHoursInput}
                   keyboardType="numbers-and-punctuation"
@@ -456,14 +424,14 @@ export default function RegistroDetalleScreen() {
 
             {/* Horas extras */}
             <View style={styles.fieldset}>
-              <Text style={styles.fieldLabel}>Horas extras (+50 %)</Text>
+              <Text style={styles.fieldLabel}>Horas extras (+25 %)</Text>
               <TextInput
                 style={styles.input}
                 value={horasExtras}
-                onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.,]/g, ''))}
+                onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.:,]/g, ''))}
                 keyboardType="decimal-pad"
                 placeholder="0"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={C.textFaint}
               />
             </View>
 
@@ -476,7 +444,7 @@ export default function RegistroDetalleScreen() {
                 onChangeText={setDescripcion}
                 multiline
                 placeholder="Tareas, incidencias o notas"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={C.textFaint}
               />
             </View>
 
@@ -495,178 +463,109 @@ export default function RegistroDetalleScreen() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
-    </View>
-  );
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: C.background },
+    topBar: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8,
+      zIndex: 50, elevation: 50,
+    },
+    topBarRight: { position: 'relative' },
+    backBtn: { padding: 4 },
+    backBtnText: { fontSize: 16, fontWeight: '600', color: Colors.brand },
+    menuBubble: {
+      width: 32, height: 32, borderRadius: 16,
+      backgroundColor: Colors.brand, justifyContent: 'center', alignItems: 'center',
+    },
+    menuBubbleActive: { backgroundColor: Colors.brandDark },
+    menuBubbleText: { fontSize: 12, color: '#ffffff', letterSpacing: 2, lineHeight: 14 },
+    floatingMenu: {
+      position: 'absolute', top: 40, right: 0, width: 180,
+      backgroundColor: C.card, borderRadius: 16, paddingVertical: 6,
+      shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 20,
+      shadowOffset: { width: 0, height: 10 }, elevation: 20, zIndex: 100,
+    },
+    floatingMenuItem: { paddingVertical: 14, paddingHorizontal: 18 },
+    floatingMenuText: { fontSize: 15, fontWeight: '600', color: C.text },
+    floatingMenuDestructive: { color: '#dc2626' },
+    floatingMenuDivider: { height: 1, backgroundColor: C.separator, marginHorizontal: 8 },
+    page: { padding: 24, paddingTop: 8, gap: 4, paddingBottom: 40 },
+    pageTitle: { fontSize: 28, fontWeight: '800', color: C.text, marginBottom: 12 },
+    infoCard: {
+      backgroundColor: C.card, borderRadius: 22, overflow: 'hidden',
+      borderWidth: 1, borderColor: C.border,
+    },
+    row: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+      paddingVertical: 14, paddingHorizontal: 18,
+      borderBottomWidth: 1, borderBottomColor: C.separator,
+    },
+    rowLabel: { fontSize: 14, color: C.textMuted, fontWeight: '600', flex: 1 },
+    rowValue: { fontSize: 15, color: C.text, fontWeight: '700', flex: 2, textAlign: 'right' },
+    notFound: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    notFoundText: { fontSize: 16, color: C.textMuted },
+    fieldset: { marginTop: 16, gap: 10 },
+    fieldLabel: { fontSize: 14, fontWeight: '700', color: Colors.brand },
+    required: { color: Colors.brand },
+    tramoLabel: { fontSize: 13, fontWeight: '600', color: C.textMuted },
+    dateNav: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.border,
+      paddingHorizontal: 4, paddingVertical: 2,
+    },
+    dateNavBtn: { padding: 12, borderRadius: 12 },
+    dateNavBtnDisabled: { opacity: 0.25 },
+    dateNavBtnText: { fontSize: 26, color: Colors.brand, fontWeight: '700', lineHeight: 30 },
+    dateNavBtnTextDisabled: { color: C.textFaint },
+    dateNavLabel: { fontSize: 16, fontWeight: '700', color: C.text, flex: 1, textAlign: 'center' },
+    input: {
+      backgroundColor: C.card, borderRadius: 16, padding: 16,
+      fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.border,
+    },
+    textArea: { minHeight: 100, textAlignVertical: 'top' },
+    timeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    timeInput: { flex: 1 },
+    timeSep: { fontSize: 16, color: C.textFaint, fontWeight: '600' },
+    totalRow: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      backgroundColor: C.card, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16,
+      borderWidth: 1, borderColor: C.border, marginTop: 4,
+    },
+    totalLabel: { fontSize: 13, color: C.textMuted, fontWeight: '600' },
+    totalValue: { fontSize: 16, fontWeight: '800', color: C.text },
+    totalInvalid: { color: '#f59e0b', fontSize: 13, fontWeight: '600' },
+    select: {
+      backgroundColor: C.card, borderRadius: 16, padding: 16,
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      borderWidth: 1, borderColor: C.border,
+    },
+    selectOpen: { borderColor: Colors.brand, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+    selectText: { fontSize: 16, color: C.text, flex: 1 },
+    selectPlaceholder: { fontSize: 16, color: C.textFaint, flex: 1 },
+    selectArrow: { fontSize: 11, color: C.textMuted, marginLeft: 8 },
+    dropdownList: {
+      backgroundColor: C.card, borderWidth: 1, borderTopWidth: 0,
+      borderColor: Colors.brand, borderBottomLeftRadius: 16, borderBottomRightRadius: 16,
+      overflow: 'hidden',
+    },
+    dropdownItem: { paddingVertical: 14, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: C.separator },
+    dropdownItemActive: { backgroundColor: `${Colors.brand}15` },
+    dropdownItemText: { fontSize: 15, color: C.text },
+    dropdownItemTextActive: { color: Colors.brand, fontWeight: '700' },
+    chipRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+    chip: {
+      paddingVertical: 10, paddingHorizontal: 18, borderRadius: 12,
+      backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
+    },
+    chipSelected: { backgroundColor: Colors.brand, borderColor: Colors.brand },
+    chipText: { fontSize: 14, fontWeight: '600', color: C.text },
+    chipTextSelected: { color: '#ffffff' },
+    buttonPrimary: {
+      marginTop: 24, backgroundColor: Colors.brand,
+      borderRadius: 16, paddingVertical: 16, alignItems: 'center',
+    },
+    buttonDisabled: { backgroundColor: '#d1d5db' },
+    buttonPrimaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+  });
 }
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.light.background },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-    zIndex: 50,
-    elevation: 50,
-  },
-  topBarRight: { position: 'relative' },
-  backBtn: { padding: 4 },
-  backBtnText: { fontSize: 16, fontWeight: '600', color: Colors.brand },
-  menuBubble: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.brand,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuBubbleActive: { backgroundColor: Colors.brandDark },
-  menuBubbleText: { fontSize: 12, color: '#ffffff', letterSpacing: 2, lineHeight: 14 },
-  floatingMenu: {
-    position: 'absolute',
-    top: 40,
-    right: 0,
-    width: 180,
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    paddingVertical: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.14,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 20,
-    zIndex: 100,
-  },
-  floatingMenuItem: { paddingVertical: 14, paddingHorizontal: 18 },
-  floatingMenuText: { fontSize: 15, fontWeight: '600', color: Colors.brandDark },
-  floatingMenuDestructive: { color: '#dc2626' },
-  floatingMenuDivider: { height: 1, backgroundColor: '#f3f4f6', marginHorizontal: 8 },
-  page: { padding: 24, paddingTop: 8, gap: 4, paddingBottom: 40 },
-  pageTitle: { fontSize: 28, fontWeight: '800', color: Colors.brandDark, marginBottom: 12 },
-  infoCard: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 22,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  rowLabel: { fontSize: 14, color: '#6b7280', fontWeight: '600', flex: 1 },
-  rowValue: { fontSize: 15, color: Colors.brandDark, fontWeight: '700', flex: 2, textAlign: 'right' },
-  notFound: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  notFoundText: { fontSize: 16, color: '#6b7280' },
-  fieldset: { marginTop: 16, gap: 10 },
-  fieldLabel: { fontSize: 14, fontWeight: '700', color: Colors.brand },
-  required: { color: Colors.brand },
-  tramoLabel: { fontSize: 13, fontWeight: '600', color: '#6b7280' },
-  dateNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  dateNavBtn: { padding: 12, borderRadius: 12 },
-  dateNavBtnDisabled: { opacity: 0.25 },
-  dateNavBtnText: { fontSize: 26, color: Colors.brand, fontWeight: '700', lineHeight: 30 },
-  dateNavBtnTextDisabled: { color: '#9ca3af' },
-  dateNavLabel: {
-    fontSize: 16, fontWeight: '700', color: Colors.brandDark,
-    flex: 1, textAlign: 'center',
-  },
-  input: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 16,
-    color: Colors.brandDark,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  textArea: { minHeight: 100, textAlignVertical: 'top' },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  timeInput: { flex: 1 },
-  timeSep: { fontSize: 16, color: '#9ca3af', fontWeight: '600' },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.light.card,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    marginTop: 4,
-  },
-  totalLabel: { fontSize: 13, color: '#6b7280', fontWeight: '600' },
-  totalValue: { fontSize: 16, fontWeight: '800', color: Colors.brandDark },
-  totalInvalid: { color: '#f59e0b', fontSize: 13, fontWeight: '600' },
-  select: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  selectOpen: { borderColor: Colors.brand, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
-  selectText: { fontSize: 16, color: Colors.brandDark, flex: 1 },
-  selectPlaceholder: { fontSize: 16, color: '#9ca3af', flex: 1 },
-  selectArrow: { fontSize: 11, color: '#6b7280', marginLeft: 8 },
-  dropdownList: {
-    backgroundColor: Colors.light.card,
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderColor: Colors.brand,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    overflow: 'hidden',
-  },
-  dropdownItem: { paddingVertical: 14, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: '#f3f4f6' },
-  dropdownItemActive: { backgroundColor: `${Colors.brand}15` },
-  dropdownItemText: { fontSize: 15, color: Colors.brandDark },
-  dropdownItemTextActive: { color: Colors.brand, fontWeight: '700' },
-  chipRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-  chip: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    backgroundColor: Colors.light.card,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  chipSelected: { backgroundColor: Colors.brand, borderColor: Colors.brand },
-  chipText: { fontSize: 14, fontWeight: '600', color: Colors.brandDark },
-  chipTextSelected: { color: '#ffffff' },
-  buttonPrimary: {
-    marginTop: 24,
-    backgroundColor: Colors.brand,
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  buttonDisabled: { backgroundColor: '#d1d5db' },
-  buttonPrimaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
-});

@@ -104,40 +104,49 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
   const addRegistro = async (registro: Omit<Registro, 'id' | 'createdAt'>) => {
     const newRegistro: Registro = {
       ...registro,
-      id: `${Date.now()}`,
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
       createdAt: new Date().toISOString(),
     };
 
-    const updated = [newRegistro, ...registrosRef.current];
+    const previous = registrosRef.current;
+    const updated = [newRegistro, ...previous];
     registrosRef.current = updated;
     setRegistros(updated);
 
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (error) {
-      console.warn('Error guardando registro', error);
+      registrosRef.current = previous;
+      setRegistros(previous);
+      throw error;
     }
   };
 
   const updateRegistro = async (id: string, data: Partial<Omit<Registro, 'id' | 'createdAt'>>) => {
-    const updated = registrosRef.current.map((r) => (r.id === id ? { ...r, ...data } : r));
+    const previous = registrosRef.current;
+    const updated = previous.map((r) => (r.id === id ? { ...r, ...data } : r));
     registrosRef.current = updated;
     setRegistros(updated);
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (error) {
-      console.warn('Error actualizando registro', error);
+      registrosRef.current = previous;
+      setRegistros(previous);
+      throw error;
     }
   };
 
   const deleteRegistro = async (id: string) => {
-    const updated = registrosRef.current.filter((r) => r.id !== id);
+    const previous = registrosRef.current;
+    const updated = previous.filter((r) => r.id !== id);
     registrosRef.current = updated;
     setRegistros(updated);
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (error) {
-      console.warn('Error eliminando registro', error);
+      registrosRef.current = previous;
+      setRegistros(previous);
+      throw error;
     }
   };
 

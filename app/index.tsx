@@ -1,10 +1,12 @@
 import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useRegistro } from '@/contexts/registro-context';
+import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import { todayDateStr } from '@/utils/date';
 import { roundToNearest30 } from '@/utils/time';
 
@@ -12,6 +14,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const { registros, loading, quickEntry, saveQuickEntry } = useRegistro();
   const { toast, showToast, dismissToast } = useToast();
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const total = registros.length;
   const latest = registros[0];
@@ -67,7 +71,6 @@ export default function HomeScreen() {
               : 'Sin entrada registrada'}
           </Text>
 
-          {/* Estado 3: entrada + salida registradas → completar o cancelar */}
           {quickEntry?.fin ? (
             <View style={styles.fichajeRow}>
               <Pressable style={styles.fichajeBtnSecondary} onPress={handleCancelarEntrada}>
@@ -78,7 +81,6 @@ export default function HomeScreen() {
               </Pressable>
             </View>
           ) : (
-            /* Estado 1 y 2: sin entrada / solo entrada */
             <View style={styles.fichajeRow}>
               {quickEntry ? (
                 <Pressable style={styles.fichajeBtnSecondary} onPress={handleCancelarEntrada}>
@@ -154,179 +156,73 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.light.background,
-  },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: 4,
-    zIndex: 10,
-    elevation: 6,
-    backgroundColor: Colors.light.background,
-  },
-  page: {
-    padding: 24,
-    paddingTop: 16,
-    gap: 20,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: Colors.brandDark,
-    marginBottom: 4,
-  },
-  pageSubtitle: {
-    fontSize: 15,
-    color: '#4b5563',
-    lineHeight: 22,
-    marginBottom: 12,
-  },
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: C.background },
+    header: {
+      paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4,
+      zIndex: 10, elevation: 6, backgroundColor: C.background,
+    },
+    page: { padding: 24, paddingTop: 16, gap: 20, paddingBottom: 40 },
+    title: { fontSize: 32, fontWeight: '800', color: C.text, marginBottom: 4 },
+    pageSubtitle: { fontSize: 15, color: C.textSecondary, lineHeight: 22, marginBottom: 12 },
 
-  // ── Fichaje rápido ──
-  fichajeCard: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 24,
-    padding: 20,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000000',
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
-  },
-  fichajeTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.brand,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  fichajeStatus: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#4b5563',
-  },
-  fichajeRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  fichajeBtnPrimary: {
-    flex: 1,
-    backgroundColor: Colors.brand,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  fichajeBtnDisabled: {
-    backgroundColor: '#d1d5db',
-  },
-  fichajeBtnPrimaryText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  fichajeBtnSecondary: {
-    flex: 1,
-    backgroundColor: `${Colors.brand}15`,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: `${Colors.brand}40`,
-  },
-  fichajeBtnSecondaryText: {
-    color: Colors.brand,
-    fontSize: 14,
-    fontWeight: '700',
-  },
+    fichajeCard: {
+      backgroundColor: C.card, borderRadius: 24, padding: 20, gap: 12,
+      borderWidth: 1, borderColor: C.border,
+      shadowColor: '#000000', shadowOpacity: 0.06, shadowRadius: 20,
+      shadowOffset: { width: 0, height: 10 }, elevation: 3,
+    },
+    fichajeTitle: {
+      fontSize: 13, fontWeight: '700', color: Colors.brand,
+      textTransform: 'uppercase', letterSpacing: 0.8,
+    },
+    fichajeStatus: { fontSize: 15, fontWeight: '600', color: C.textSecondary },
+    fichajeRow: { flexDirection: 'row', gap: 12 },
+    fichajeBtnPrimary: {
+      flex: 1, backgroundColor: Colors.brand, borderRadius: 14,
+      paddingVertical: 14, alignItems: 'center',
+    },
+    fichajeBtnDisabled: { backgroundColor: '#d1d5db' },
+    fichajeBtnPrimaryText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+    fichajeBtnSecondary: {
+      flex: 1, backgroundColor: `${Colors.brand}15`, borderRadius: 14,
+      paddingVertical: 14, alignItems: 'center',
+      borderWidth: 1, borderColor: `${Colors.brand}40`,
+    },
+    fichajeBtnSecondaryText: { color: Colors.brand, fontSize: 14, fontWeight: '700' },
 
-  // ── Estado general ──
-  stateCard: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000000',
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 4,
-  },
-  stateLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.brand,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 12,
-  },
-  stateValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.brandDark,
-    marginBottom: 8,
-  },
-  stateNote: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#4b5563',
-  },
-  actions: {
-    gap: 14,
-  },
-  buttonPrimary: {
-    backgroundColor: Colors.brand,
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  buttonPrimaryText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  recentSection: {
-    gap: 10,
-  },
-  recentTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.brandDark,
-    marginBottom: 2,
-  },
-  recentCard: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 18,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOpacity: 0.05,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  recentCardPressed: { opacity: 0.7 },
-  recentCardLeft: { flex: 1, marginRight: 12 },
-  recentCardTitulo: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.brandDark,
-  },
-  recentCardMeta: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 3,
-  },
-  recentCardDuracion: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.brand,
-  },
-});
+    stateCard: {
+      backgroundColor: C.card, borderRadius: 24, padding: 24,
+      shadowColor: '#000000', shadowOpacity: 0.08, shadowRadius: 24,
+      shadowOffset: { width: 0, height: 12 }, elevation: 4,
+    },
+    stateLabel: {
+      fontSize: 14, fontWeight: '700', color: Colors.brand,
+      textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12,
+    },
+    stateValue: { fontSize: 24, fontWeight: '800', color: C.text, marginBottom: 8 },
+    stateNote: { fontSize: 15, lineHeight: 22, color: C.textSecondary },
+
+    actions: { gap: 14 },
+    buttonPrimary: {
+      backgroundColor: Colors.brand, borderRadius: 16,
+      paddingVertical: 16, alignItems: 'center',
+    },
+    buttonPrimaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+
+    recentSection: { gap: 10 },
+    recentTitle: { fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 2 },
+    recentCard: {
+      backgroundColor: C.card, borderRadius: 18, padding: 16,
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      shadowColor: '#000000', shadowOpacity: 0.05, shadowRadius: 14,
+      shadowOffset: { width: 0, height: 6 }, elevation: 2,
+    },
+    recentCardPressed: { opacity: 0.7 },
+    recentCardLeft: { flex: 1, marginRight: 12 },
+    recentCardTitulo: { fontSize: 15, fontWeight: '700', color: C.text },
+    recentCardMeta: { fontSize: 13, color: C.textMuted, marginTop: 3 },
+    recentCardDuracion: { fontSize: 14, fontWeight: '700', color: Colors.brand },
+  });
+}

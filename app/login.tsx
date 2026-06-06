@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
+import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 
 const brandMark = require('../assets/images/salvagnini-mark.png');
 
@@ -11,6 +12,8 @@ export default function LoginScreen() {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const C = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const canLogin = nombre.trim().length > 0;
 
@@ -41,7 +44,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="Tu nombre"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={C.textFaint}
               value={nombre}
               onChangeText={setNombre}
               autoCapitalize="words"
@@ -55,7 +58,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="correo@ejemplo.com"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={C.textFaint}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -80,81 +83,34 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.light.background,
-  },
-  flex: {
-    flex: 1,
-  },
-  page: {
-    padding: 32,
-    gap: 20,
-    flexGrow: 1,
-  },
-  logoContainer: {
-    alignItems: 'flex-start',
-    marginTop: 24,
-    marginBottom: 8,
-  },
-  iconButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
-    backgroundColor: Colors.brand,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
-  },
-  icon: {
-    width: 34,
-    height: 34,
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: Colors.brandDark,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#4b5563',
-    lineHeight: 24,
-  },
-  fieldset: {
-    gap: 10,
-  },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.brand,
-  },
-  input: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 16,
-    color: Colors.brandDark,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  buttonPrimary: {
-    marginTop: 12,
-    backgroundColor: Colors.brand,
-    borderRadius: 16,
-    paddingVertical: 18,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    backgroundColor: '#d1d5db',
-  },
-  buttonPrimaryText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-});
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: C.background },
+    flex: { flex: 1 },
+    page: { padding: 32, gap: 20, flexGrow: 1 },
+    logoContainer: { alignItems: 'flex-start', marginTop: 24, marginBottom: 8 },
+    iconButton: {
+      width: 64, height: 64, borderRadius: 22,
+      backgroundColor: Colors.brand,
+      justifyContent: 'center', alignItems: 'center',
+      shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 }, elevation: 5,
+    },
+    icon: { width: 34, height: 34 },
+    title: { fontSize: 36, fontWeight: '800', color: C.text },
+    subtitle: { fontSize: 16, color: C.textSecondary, lineHeight: 24 },
+    fieldset: { gap: 10 },
+    fieldLabel: { fontSize: 14, fontWeight: '700', color: Colors.brand },
+    input: {
+      backgroundColor: C.card, borderRadius: 16,
+      padding: 16, fontSize: 16, color: C.text,
+      borderWidth: 1, borderColor: C.border,
+    },
+    buttonPrimary: {
+      marginTop: 12, backgroundColor: Colors.brand,
+      borderRadius: 16, paddingVertical: 18, alignItems: 'center',
+    },
+    buttonDisabled: { backgroundColor: '#d1d5db' },
+    buttonPrimaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+  });
+}
