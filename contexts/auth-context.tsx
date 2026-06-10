@@ -10,6 +10,7 @@ type AuthContextValue = {
   usuario: Usuario | null;
   loading: boolean;
   login: (nombre: string, email: string) => Promise<void>;
+  updateProfile: (nombre: string, email: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -50,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ usuario, loading, login, logout }}>
+    <AuthContext.Provider value={{ usuario, loading, login, updateProfile: login, logout }}>
       {children}
     </AuthContext.Provider>
   );

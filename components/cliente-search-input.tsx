@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { CLIENTES } from '@/constants/clients';
 import { Colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 interface Props {
   value: string;
@@ -17,6 +18,7 @@ function normalize(s: string): string {
 
 export function ClienteSearchInput({ value, onChangeText }: Props) {
   const [open, setOpen] = useState(false);
+  const C = useTheme();
 
   const query = normalize(value.trim());
   const suggestions =
@@ -29,9 +31,9 @@ export function ClienteSearchInput({ value, onChangeText }: Props) {
   return (
     <View style={styles.wrapper}>
       {/* Input row */}
-      <View style={[styles.inputRow, showDropdown && styles.inputRowOpen]}>
+      <View style={[styles.inputRow, { backgroundColor: C.card, borderColor: C.border }, showDropdown && styles.inputRowOpen]}>
         <TextInput
-          style={styles.textInput}
+          style={[styles.textInput, { color: C.text }]}
           placeholder="Escribe para buscar cliente..."
           placeholderTextColor="#9ca3af"
           value={value}
@@ -48,6 +50,8 @@ export function ClienteSearchInput({ value, onChangeText }: Props) {
           <Pressable
             style={styles.clearBtn}
             onPress={() => { onChangeText(''); setOpen(false); }}
+            accessibilityRole="button"
+            accessibilityLabel="Limpiar cliente"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Text style={styles.clearBtnText}>✕</Text>
@@ -57,7 +61,7 @@ export function ClienteSearchInput({ value, onChangeText }: Props) {
 
       {/* Dropdown de sugerencias */}
       {showDropdown && (
-        <View style={styles.dropdown}>
+        <View style={[styles.dropdown, { backgroundColor: C.card }]}>
           {suggestions.map((client, index) => (
             <Pressable
               key={client}
@@ -71,7 +75,7 @@ export function ClienteSearchInput({ value, onChangeText }: Props) {
                 setOpen(false);
               }}
             >
-              <Text style={styles.itemText} numberOfLines={1}>
+              <Text style={[styles.itemText, { color: C.text }]} numberOfLines={1}>
                 {client}
               </Text>
             </Pressable>

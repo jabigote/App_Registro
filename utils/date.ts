@@ -3,7 +3,10 @@ function pad(n: number): string {
 }
 
 export function todayDateStr(): string {
-  const d = new Date();
+  return dateToDateStr(new Date());
+}
+
+export function dateToDateStr(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 

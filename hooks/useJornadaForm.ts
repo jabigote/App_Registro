@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { type Dieta } from '@/contexts/registro-context';
-import { fmtDuration, parseHoursInput, parseTime, STANDARD_END_MIN } from '@/utils/time';
+import { fmtDuration, parseHoursInput, parseTime } from '@/utils/time';
 
 export const TIPOS_JORNADA = [
   { value: 'Oficina',     label: 'Oficina' },
@@ -63,58 +63,65 @@ export function useJornadaForm(options: JornadaFormOptions = {}) {
 
   const isMixed = tipoJornada === 'Mixto';
 
-  const { duracion, suggestedExtras } = useMemo(() => {
-    if (isMixed) return { duracion: null, suggestedExtras: null };
+  const { duracion, scheduleError } = useMemo(() => {
+    if (isMixed) return { duracion: null, scheduleError: null };
     const s1 = parseTime(inicio1); const e1 = parseTime(fin1);
-    if (s1 === null || e1 === null || e1 <= s1) return { duracion: null, suggestedExtras: null };
+    if (s1 === null || e1 === null || e1 <= s1) {
+      return { duracion: null, scheduleError: 'El primer tramo no es válido.' };
+    }
     let total = e1 - s1;
-    let lastEnd = e1;
     const has2 = inicio2.trim().length > 0 || fin2.trim().length > 0;
     if (has2) {
       const s2 = parseTime(inicio2); const e2 = parseTime(fin2);
-      if (s2 === null || e2 === null || e2 <= s2) return { duracion: null, suggestedExtras: null };
+      if (s2 === null || e2 === null || e2 <= s2) {
+        return { duracion: null, scheduleError: 'Completa correctamente el segundo tramo.' };
+      }
+      if (s2 < e1) {
+        return { duracion: null, scheduleError: 'Los tramos horarios no pueden solaparse.' };
+      }
       total += e2 - s2;
-      lastEnd = e2;
     }
-    const extraMin = Math.max(0, lastEnd - STANDARD_END_MIN);
-    return { duracion: fmtDuration(total), suggestedExtras: Math.round(extraMin / 60 * 10) / 10 };
+    return { duracion: fmtDuration(total), scheduleError: null };
   }, [isMixed, inicio1, fin1, inicio2, fin2]);
 
-  const mixedDuration = useMemo(() => {
-    if (!isMixed) return null;
-    const homeMin = parseHoursInput(homeRecoveryInput) ?? 0;
-    const extMin  = parseHoursInput(externalHoursInput) ?? 0;
-    const total   = homeMin + extMin;
-    return total > 0 ? fmtDuration(total) : null;
+  const { mixedDuration, mixedError } = useMemo(() => {
+    if (!isMixed) return { mixedDuration: null, mixedError: null };
+    const homeMin = parseHoursInput(homeRecoveryInput);
+    const extMin  = parseHoursInput(externalHoursInput);
+    if (homeRecoveryInput.trim() && homeMin === null) {
+      return { mixedDuration: null, mixedError: 'Las horas en casa no tienen un formato válido.' };
+    }
+    if (externalHoursInput.trim() && extMin === null) {
+      return { mixedDuration: null, mixedError: 'Las horas de cliente no tienen un formato válido.' };
+    }
+    const total = (homeMin ?? 0) + (extMin ?? 0);
+    return {
+      mixedDuration: total > 0 ? fmtDuration(total) : null,
+      mixedError: total > 0 ? null : 'Introduce al menos un tramo de horas.',
+    };
   }, [isMixed, homeRecoveryInput, externalHoursInput]);
 
-  const mountedRef       = useRef(false);
-  const skipFirstRef     = useRef(options.skipFirstExtrasSync ?? false);
   const resetOnChangeRef = useRef(options.resetOnTipoChange ?? false);
-
-  useEffect(() => {
-    if (skipFirstRef.current && !mountedRef.current) {
-      mountedRef.current = true;
-      return;
-    }
-    if (!isMixed && suggestedExtras !== null) {
-      setHorasExtras(suggestedExtras > 0 ? String(suggestedExtras) : '0');
-    }
-  }, [isMixed, suggestedExtras]);
 
   useEffect(() => {
     if (!resetOnChangeRef.current) return;
     setNombreCliente('');
     setHomeRecoveryInput('');
     setExternalHoursInput('');
-    setHorasExtras('0');
   }, [tipoJornada]);
 
   const effectiveDuration = isMixed ? mixedDuration : duracion;
+  const extrasError =
+    horasExtras.trim() !== '' && horasExtras.trim() !== '0' && parseHoursInput(horasExtras) === null
+      ? 'Las horas extras no tienen un formato válido.'
+      : null;
+  const validationError = isMixed ? mixedError : scheduleError;
   const canSave =
     tipoJornada.length > 0 &&
     (!needsCliente(tipoJornada) || nombreCliente.trim().length > 0) &&
-    effectiveDuration !== null;
+    effectiveDuration !== null &&
+    validationError === null &&
+    extrasError === null;
 
   return {
     tipoJornada, setTipoJornada,
@@ -134,6 +141,8 @@ export function useJornadaForm(options: JornadaFormOptions = {}) {
     duracion,
     mixedDuration,
     effectiveDuration,
+    validationError,
+    extrasError,
     canSave,
   };
 }

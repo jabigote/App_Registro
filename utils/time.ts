@@ -3,14 +3,23 @@ export const STANDARD_END_MIN = 17 * 60;
 /** Redondea al cuarto de hora más cercano en bloques de 30 min:
  *  0–14 min → :00 · 15–44 min → :30 · 45–59 min → siguiente hora :00 */
 export function roundToNearest30(date: Date): string {
+  return roundDateToNearest30(date).time;
+}
+
+export function roundDateToNearest30(date: Date): { date: Date; time: string } {
+  const rounded = new Date(date);
   const h = date.getHours();
   const m = date.getMinutes();
   let rH = h;
   let rM: number;
   if (m < 15)      { rM = 0; }
   else if (m < 45) { rM = 30; }
-  else             { rM = 0; rH = (h + 1) % 24; }
-  return `${String(rH).padStart(2, '0')}:${String(rM).padStart(2, '0')}`;
+  else             { rM = 0; rH = h + 1; }
+  rounded.setHours(rH, rM, 0, 0);
+  return {
+    date: rounded,
+    time: `${String(rounded.getHours()).padStart(2, '0')}:${String(rM).padStart(2, '0')}`,
+  };
 }
 
 export function parseTime(value: string): number | null {
@@ -42,4 +51,10 @@ export function parseHoursInput(s: string): number | null {
   const num = parseFloat(trimmed.replace(',', '.'));
   if (!isNaN(num) && num > 0) return Math.round(num * 60);
   return null;
+}
+
+export function durationToMinutes(duracion: string): number {
+  const h = duracion.match(/(\d+)h/);
+  const m = duracion.match(/(\d+)m/);
+  return (h ? parseInt(h[1], 10) : 0) * 60 + (m ? parseInt(m[1], 10) : 0);
 }

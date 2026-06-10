@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { BrandLogo } from '@/components/brand-logo';
 import { ClienteSearchInput } from '@/components/cliente-search-input';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
@@ -77,10 +78,8 @@ export default function RegistroDetalleScreen() {
   if (!registro) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>← Volver</Text>
-          </Pressable>
+        <View style={styles.header}>
+          <BrandLogo />
         </View>
         <View style={styles.notFound}>
           <Text style={styles.notFoundText}>Registro no encontrado.</Text>
@@ -157,46 +156,43 @@ export default function RegistroDetalleScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.topBar}>
-        <Pressable
-          onPress={() => { setEditMode(false); setMenuVisible(false); router.back(); }}
-          style={styles.backBtn}
-        >
-          <Text style={styles.backBtnText}>← Volver</Text>
-        </Pressable>
-
-        <View style={styles.topBarRight}>
-          {editMode ? (
-            <Pressable onPress={() => setEditMode(false)} style={styles.backBtn}>
-              <Text style={[styles.backBtnText, { color: C.textMuted }]}>Cancelar</Text>
-            </Pressable>
-          ) : (
-            <>
-              <Pressable
-                onPress={() => setMenuVisible((v) => !v)}
-                style={[styles.menuBubble, menuVisible && styles.menuBubbleActive]}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text style={styles.menuBubbleText}>···</Text>
-              </Pressable>
-              {menuVisible && (
-                <View style={styles.floatingMenu}>
-                  <Pressable
-                    style={styles.floatingMenuItem}
-                    onPress={() => { setMenuVisible(false); setEditMode(true); }}
-                  >
-                    <Text style={styles.floatingMenuText}>Editar</Text>
-                  </Pressable>
-                  <View style={styles.floatingMenuDivider} />
-                  <Pressable style={styles.floatingMenuItem} onPress={confirmDelete}>
-                    <Text style={[styles.floatingMenuText, styles.floatingMenuDestructive]}>Eliminar</Text>
-                  </Pressable>
-                </View>
-              )}
-            </>
-          )}
-        </View>
+      {/* ── Encabezado estático ── */}
+      <View style={styles.header}>
+        <BrandLogo screenTitle={editMode ? 'Editar jornada' : registro.titulo} />
+        {/* Botón de acción derecha: ··· (ver) o Cancelar (editar) */}
+        {editMode ? (
+          <Pressable
+            style={styles.headerActionBtn}
+            onPress={() => setEditMode(false)}
+          >
+            <Text style={styles.headerCancelText}>Cancelar</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={styles.headerActionBtn}
+            onPress={() => setMenuVisible((v) => !v)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 4 }}
+          >
+            <Text style={styles.headerDotsText}>···</Text>
+          </Pressable>
+        )}
       </View>
+
+      {/* Menú flotante editar/eliminar — fuera del header para evitar clipping */}
+      {menuVisible && (
+        <View style={styles.floatingMenu}>
+          <Pressable
+            style={styles.floatingMenuItem}
+            onPress={() => { setMenuVisible(false); setEditMode(true); }}
+          >
+            <Text style={styles.floatingMenuText}>Editar</Text>
+          </Pressable>
+          <View style={styles.floatingMenuDivider} />
+          <Pressable style={styles.floatingMenuItem} onPress={confirmDelete}>
+            <Text style={[styles.floatingMenuText, styles.floatingMenuDestructive]}>Eliminar</Text>
+          </Pressable>
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={styles.page}
@@ -207,7 +203,6 @@ export default function RegistroDetalleScreen() {
         {/* ── VIEW MODE ── */}
         {!editMode && (
           <>
-            <Text style={styles.pageTitle}>{registro.titulo}</Text>
             <View style={styles.infoCard}>
               <Row label="Fecha" value={formatFecha(registroFecha)} />
               {registro.cliente ? <Row label="Cliente" value={registro.cliente} /> : null}
@@ -240,8 +235,6 @@ export default function RegistroDetalleScreen() {
         {/* ── EDIT MODE ── */}
         {editMode && (
           <>
-            <Text style={styles.pageTitle}>Editar jornada</Text>
-
             {/* Fecha */}
             <View style={styles.fieldset}>
               <Text style={styles.fieldLabel}>Fecha de la jornada</Text>
@@ -466,22 +459,20 @@ export default function RegistroDetalleScreen() {
 function makeStyles(C: ThemeColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.background },
-    topBar: {
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-      paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8,
-      zIndex: 50, elevation: 50,
+    header: {
+      paddingHorizontal: 24, paddingTop: 10, paddingBottom: 14,
+      zIndex: 10, elevation: 6, backgroundColor: C.background,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
-    topBarRight: { position: 'relative' },
-    backBtn: { padding: 4 },
-    backBtnText: { fontSize: 16, fontWeight: '600', color: Colors.brand },
-    menuBubble: {
-      width: 32, height: 32, borderRadius: 16,
-      backgroundColor: Colors.brand, justifyContent: 'center', alignItems: 'center',
+    // ··· / Cancelar absolutamente posicionado en esquina superior derecha del header
+    headerActionBtn: {
+      position: 'absolute', right: 24, top: 18, zIndex: 20, padding: 8,
     },
-    menuBubbleActive: { backgroundColor: Colors.brandDark },
-    menuBubbleText: { fontSize: 12, color: '#ffffff', letterSpacing: 2, lineHeight: 14 },
+    headerDotsText: { fontSize: 20, color: Colors.brand, fontWeight: '700', letterSpacing: 2 },
+    headerCancelText: { fontSize: 15, fontWeight: '600', color: C.textMuted },
+    // Menú flotante — absoluto respecto a SafeAreaView, debajo del header
     floatingMenu: {
-      position: 'absolute', top: 40, right: 0, width: 180,
+      position: 'absolute', top: 116, right: 24, width: 180,
       backgroundColor: C.card, borderRadius: 16, paddingVertical: 6,
       shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 20,
       shadowOffset: { width: 0, height: 10 }, elevation: 20, zIndex: 100,
@@ -490,8 +481,7 @@ function makeStyles(C: ThemeColors) {
     floatingMenuText: { fontSize: 15, fontWeight: '600', color: C.text },
     floatingMenuDestructive: { color: '#dc2626' },
     floatingMenuDivider: { height: 1, backgroundColor: C.separator, marginHorizontal: 8 },
-    page: { padding: 24, paddingTop: 8, gap: 4, paddingBottom: 40 },
-    pageTitle: { fontSize: 28, fontWeight: '800', color: C.text, marginBottom: 12 },
+    page: { padding: 24, paddingTop: 16, gap: 4, paddingBottom: 40 },
     infoCard: {
       backgroundColor: C.card, borderRadius: 22, overflow: 'hidden',
       borderWidth: 1, borderColor: C.border,

@@ -110,14 +110,13 @@ export default function NuevoRegistroScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo />
+        <BrandLogo screenTitle="Nueva jornada" />
       </View>
       <ScrollView
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Registro de jornada</Text>
 
         {/* Fecha */}
         <View style={styles.fieldset}>
@@ -306,9 +305,6 @@ export default function NuevoRegistroScreen() {
               onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.:,]/g, ''))}
               keyboardType="numbers-and-punctuation"
             />
-            {horasExtrasInvalid && (
-              <Text style={styles.fieldError}>Formato inválido. Usa p.ej. 1.5 o 1:30</Text>
-            )}
           </View>
         )}
 

@@ -39,7 +39,7 @@ export function Toast({ toast, onDismiss }: ToastProps) {
     ]);
     seq.start(({ finished }) => { if (finished) onDismiss(); });
     return () => seq.stop();
-  }, [toast?.key, onDismiss, opacity]);
+  }, [toast, onDismiss, opacity]);
 
   if (!toast) return null;
 

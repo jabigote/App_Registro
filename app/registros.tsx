@@ -36,7 +36,6 @@ type Section = { title: string; data: Registro[] };
 export default function RegistrosScreen() {
   const { registros, loading, deleteRegistro } = useRegistro();
   const router = useRouter();
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
   const { toast, showToast, dismissToast } = useToast();
@@ -74,13 +73,11 @@ export default function RegistrosScreen() {
   }, [filteredRegistros]);
 
   const handleEdit = (id: string) => {
-    setOpenMenuId(null);
     swipeableRefs.current.get(id)?.close();
     router.push({ pathname: '/registro-detalle', params: { id, editMode: '1' } });
   };
 
   const handleDelete = (id: string) => {
-    setOpenMenuId(null);
     swipeableRefs.current.get(id)?.close();
     Alert.alert('Eliminar jornada', '¿Seguro que quieres eliminar esta jornada?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -107,7 +104,6 @@ export default function RegistrosScreen() {
   );
 
   const renderItem = ({ item: registro }: { item: Registro }) => {
-    const menuOpen = openMenuId === registro.id;
     const dietaLabel =
       registro.dieta === 'media' ? '½ Dieta' :
       registro.dieta === 'completa' ? 'Dieta completa' : null;
@@ -122,14 +118,10 @@ export default function RegistrosScreen() {
         overshootRight={false}
         friction={2}
         rightThreshold={40}
-        onSwipeableOpen={() => setOpenMenuId(null)}
       >
         <Pressable
-          style={[styles.recordCard, menuOpen && styles.recordCardOpen]}
-          onPress={() => {
-            if (menuOpen) { setOpenMenuId(null); return; }
-            router.push({ pathname: '/registro-detalle', params: { id: registro.id } });
-          }}
+          style={styles.recordCard}
+          onPress={() => router.push({ pathname: '/registro-detalle', params: { id: registro.id } })}
         >
           <View style={styles.recordHeader}>
             <View style={styles.recordTitleCol}>
@@ -138,16 +130,7 @@ export default function RegistrosScreen() {
                 ? <Text style={styles.recordCliente} numberOfLines={1}>{registro.cliente}</Text>
                 : null}
             </View>
-            <View style={styles.recordHeaderRight}>
-              <Text style={styles.recordDuration}>{registro.duracion}</Text>
-              <Pressable
-                onPress={() => setOpenMenuId((prev) => (prev === registro.id ? null : registro.id))}
-                style={[styles.menuBubble, menuOpen && styles.menuBubbleActive]}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text style={[styles.menuBubbleText, menuOpen && styles.menuBubbleTextActive]}>···</Text>
-              </Pressable>
-            </View>
+            <Text style={styles.recordDuration}>{registro.duracion}</Text>
           </View>
 
           <Text style={styles.recordSubtitle}>
@@ -167,18 +150,6 @@ export default function RegistrosScreen() {
           {registro.descripcion
             ? <Text style={styles.recordDescription}>{registro.descripcion}</Text>
             : null}
-
-          {menuOpen && (
-            <View style={styles.cardMenu}>
-              <Pressable style={styles.cardMenuItem} onPress={() => handleEdit(registro.id)}>
-                <Text style={styles.cardMenuItemText}>Editar</Text>
-              </Pressable>
-              <View style={styles.cardMenuDivider} />
-              <Pressable style={styles.cardMenuItem} onPress={() => handleDelete(registro.id)}>
-                <Text style={[styles.cardMenuItemText, styles.cardMenuDestructive]}>Eliminar</Text>
-              </Pressable>
-            </View>
-          )}
         </Pressable>
       </Swipeable>
     );
@@ -192,7 +163,6 @@ export default function RegistrosScreen() {
 
   const listHeader = (
     <View style={styles.listHeader}>
-      <Text style={styles.title}>Registros</Text>
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
@@ -258,7 +228,7 @@ export default function RegistrosScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo />
+        <BrandLogo screenTitle="Registros" />
       </View>
       {loading ? (
         <View style={styles.centered}>
@@ -271,7 +241,6 @@ export default function RegistrosScreen() {
           contentContainerStyle={styles.page}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled
-          onScrollBeginDrag={() => setOpenMenuId(null)}
           ListHeaderComponent={listHeader}
           ListEmptyComponent={listEmpty}
           renderItem={renderItem}
@@ -353,29 +322,15 @@ function makeStyles(C: ThemeColors) {
       shadowOffset: { width: 0, height: 10 }, elevation: 3,
       gap: 8, borderWidth: 1, borderColor: 'transparent',
     },
-    recordCardOpen: { borderColor: `${Colors.brand}40` },
     recordHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
     recordTitleCol: { flex: 1, marginRight: 10 },
     recordTitle: { fontSize: 18, fontWeight: '700', color: C.text },
     recordCliente: { fontSize: 13, color: C.textMuted, marginTop: 2 },
-    recordHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     recordDuration: { fontSize: 14, fontWeight: '700', color: Colors.brand },
-    menuBubble: {
-      width: 32, height: 32, borderRadius: 16,
-      backgroundColor: Colors.brand, justifyContent: 'center', alignItems: 'center',
-    },
-    menuBubbleActive: { backgroundColor: Colors.brandDark },
-    menuBubbleText: { fontSize: 12, color: '#ffffff', letterSpacing: 2, lineHeight: 14 },
-    menuBubbleTextActive: { color: '#ffffff' },
     recordSubtitle: { fontSize: 14, color: C.textSecondary },
     tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     tag: { backgroundColor: `${Colors.brand}18`, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10 },
     tagText: { fontSize: 12, fontWeight: '700', color: Colors.brand },
     recordDescription: { fontSize: 14, color: C.textMuted, lineHeight: 20 },
-    cardMenu: { marginTop: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.separator },
-    cardMenuItem: { paddingVertical: 11, paddingHorizontal: 4 },
-    cardMenuItemText: { fontSize: 15, fontWeight: '600', color: C.text },
-    cardMenuDestructive: { color: '#dc2626' },
-    cardMenuDivider: { height: 1, backgroundColor: C.separator },
   });
 }

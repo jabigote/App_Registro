@@ -8,11 +8,11 @@ import { type Registro, useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import {
   type MonthlyDayRecord,
-  type WorkdayType,
   generateMonthlyReportFromTemplate,
   resolveDailyExcelValues,
   shareReportFile,
 } from '@/src/services/excel/generateMonthlyReportFromTemplate';
+import { buildMonthlyDayRecords } from '@/src/services/excel/build-monthly-records';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -172,33 +172,7 @@ export default function RegistroMensualScreen() {
   const totalDietas   = registrosDelMes.filter((r) => r.dieta && r.dieta !== 'ninguna').length;
   const totalPernoctas = registrosDelMes.filter((r) => r.pernocta).length;
 
-  const TIPO_MAP: Record<string, WorkdayType> = {
-    'Oficina':     'office',
-    'Casa':        'home_recovery',
-    'Cliente':     'external',
-    'Mixto':       'mixed',
-    'Teletrabajo': 'remote',
-  };
-
-  const buildRecords = (): MonthlyDayRecord[] =>
-    registrosDelMes.map((reg) => {
-      const extras  = reg.horasExtras && reg.horasExtras > 0 ? reg.horasExtras : 0;
-      const baseMins = Math.max(0, durationToMinutes(reg.duracion) - Math.round(extras * 60));
-      const baseH   = baseMins > 0 ? baseMins / 60 : undefined;
-      return {
-        day:               getDayFromRegistro(reg),
-        workdayType:       TIPO_MAP[reg.titulo] as WorkdayType | undefined,
-        normalHours:       reg.titulo !== 'Mixto' ? baseH : undefined,
-        homeRecoveryHours: reg.homeRecoveryHours,
-        externalHours:     reg.externalHours,
-        overtime25:        extras > 0 ? extras : undefined,
-        halfDiet:          reg.dieta === 'media'    ? 1 : undefined,
-        fullDiet:          reg.dieta === 'completa' ? 1 : undefined,
-        overnight:         reg.pernocta ? 1 : undefined,
-        clientName:        reg.cliente || undefined,
-        notes:             reg.descripcion || undefined,
-      };
-    });
+  const buildRecords = (): MonthlyDayRecord[] => buildMonthlyDayRecords(registrosDelMes);
 
   // Genera el archivo con el modal aún abierto (botón en "Generando…") y lo cierra al
   // terminar. El share sheet NO se presenta aquí: si se lanza mientras el pageSheet
@@ -249,10 +223,9 @@ export default function RegistroMensualScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo />
+        <BrandLogo screenTitle="Registro mensual" />
       </View>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Registro mensual</Text>
 
         {/* Selector de mes */}
         <View style={styles.monthNav}>

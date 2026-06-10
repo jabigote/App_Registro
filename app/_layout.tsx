@@ -6,9 +6,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { RegistroProvider } from '@/contexts/registro-context';
+import { ThemePreferenceProvider, useThemePreference } from '@/contexts/theme-context';
 
 function AuthGuard() {
   const { usuario, loading } = useAuth();
@@ -23,30 +23,38 @@ function AuthGuard() {
     } else if (usuario && inLogin) {
       router.replace('/');
     }
-  }, [usuario, loading, segments]);
+  }, [usuario, loading, router, segments]);
 
   return null;
 }
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+function AppContent() {
+  const { effectiveScheme } = useThemePreference();
 
   return (
+    <ThemeProvider value={effectiveScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <AuthProvider>
+        <RegistroProvider>
+          <AuthGuard />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: Colors[effectiveScheme].background },
+            }}
+          />
+        </RegistroProvider>
+      </AuthProvider>
+      <StatusBar style={effectiveScheme === 'dark' ? 'light' : 'dark'} />
+    </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AuthProvider>
-          <RegistroProvider>
-            <AuthGuard />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: Colors[colorScheme ?? 'light'].background },
-              }}
-            />
-          </RegistroProvider>
-        </AuthProvider>
-        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-      </ThemeProvider>
+      <ThemePreferenceProvider>
+        <AppContent />
+      </ThemePreferenceProvider>
     </GestureHandlerRootView>
   );
 }

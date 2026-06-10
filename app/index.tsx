@@ -8,8 +8,8 @@ import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
-import { todayDateStr } from '@/utils/date';
-import { roundToNearest30 } from '@/utils/time';
+import { dateToDateStr } from '@/utils/date';
+import { roundDateToNearest30 } from '@/utils/time';
 
 const TIPO_COLORS: Record<string, string> = {
   Oficina:     '#3b82f6',
@@ -80,17 +80,17 @@ export default function HomeScreen() {
 
   const handleEntrada = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const hora = roundToNearest30(new Date());
-    await saveQuickEntry({ fecha: todayDateStr(), inicio: hora });
-    showToast(`Entrada registrada: ${hora}`);
+    const rounded = roundDateToNearest30(new Date());
+    await saveQuickEntry({ fecha: dateToDateStr(rounded.date), inicio: rounded.time });
+    showToast(`Entrada registrada: ${rounded.time}`);
   };
 
   const handleSalida = async () => {
     if (!quickEntry) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const hora = roundToNearest30(new Date());
-    await saveQuickEntry({ ...quickEntry, fin: hora });
-    showToast(`Salida registrada: ${hora}`);
+    const rounded = roundDateToNearest30(new Date());
+    await saveQuickEntry({ ...quickEntry, fin: rounded.time });
+    showToast(`Salida registrada: ${rounded.time}`);
   };
 
   const handleCompletarJornada = () => {
@@ -122,11 +122,10 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safeArea}>
       {/* ── Encabezado estático ── */}
       <View style={styles.header}>
-        <BrandLogo />
+        <BrandLogo screenTitle="Panel de control" />
       </View>
 
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Panel de control</Text>
 
         {/* ── Fichaje rápido: sección abierta, sin card ── */}
         <View style={styles.fichajeSection}>
@@ -251,7 +250,6 @@ function makeStyles(C: ThemeColors) {
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
     page: { padding: 24, paddingTop: 20, gap: 20, paddingBottom: 40 },
-    title: { fontSize: 28, fontWeight: '800', color: C.text, textAlign: 'center' },
 
     // ── Fichaje rápido ──
     fichajeSection: { gap: 12 },
