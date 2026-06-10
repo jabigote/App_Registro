@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { type Href, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert, LayoutAnimation, Pressable, SafeAreaView, ScrollView,
@@ -17,8 +18,7 @@ import { useRegistro } from '@/contexts/registro-context';
 import { type ThemePreference, useThemePreference } from '@/contexts/theme-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import { isRegistro, type Registro } from '@/src/domain/registro';
-
-const KEY_NOTIF_CIERRE = '@salvagnini_notif_cierre';
+import { NOTIFICATION_REMINDER_KEY } from '@/utils/notifications';
 
 function isRegistroArray(value: unknown): value is Registro[] {
   return Array.isArray(value) && value.every(isRegistro);
@@ -40,7 +40,13 @@ function Section({
 }) {
   return (
     <View style={styles.group}>
-      <Pressable style={styles.groupHeader} onPress={onToggle}>
+      <Pressable
+        style={styles.groupHeader}
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`${open ? 'Cerrar' : 'Abrir'} sección ${title}`}
+      >
         <Text style={styles.groupLabel}>{title}</Text>
         <Text style={styles.groupChevron}>{open ? '▲' : '▼'}</Text>
       </Pressable>
@@ -53,6 +59,7 @@ export default function AjustesScreen() {
   const { registros, mergeRegistros, replaceRegistros, clearRegistros, storageWarning } = useRegistro();
   const { usuario, updateProfile } = useAuth();
   const { preference, setPreference } = useThemePreference();
+  const router = useRouter();
   const { toast, showToast, dismissToast } = useToast();
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -71,7 +78,7 @@ export default function AjustesScreen() {
   });
 
   useEffect(() => {
-    AsyncStorage.getItem(KEY_NOTIF_CIERRE)
+    AsyncStorage.getItem(NOTIFICATION_REMINDER_KEY)
       .then((v) => { if (v !== null) setNotifCierre(v === 'true'); })
       .catch(() => {});
   }, []);
@@ -83,7 +90,7 @@ export default function AjustesScreen() {
 
   const toggleNotifCierre = async (val: boolean) => {
     setNotifCierre(val);
-    await AsyncStorage.setItem(KEY_NOTIF_CIERRE, String(val)).catch(() => {});
+    await AsyncStorage.setItem(NOTIFICATION_REMINDER_KEY, String(val)).catch(() => {});
   };
 
   const handleExportBackup = async () => {
@@ -245,6 +252,8 @@ export default function AjustesScreen() {
                   key={value}
                   style={[styles.appearanceChip, active && styles.appearanceChipActive]}
                   onPress={() => setPreference(value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
                 >
                   <Text style={[styles.appearanceText, active && styles.appearanceTextActive]}>
                     {label}
@@ -312,10 +321,18 @@ export default function AjustesScreen() {
 
         {/* ── APLICACIÓN ── */}
         <Section title="Aplicación" open={open.app} onToggle={() => toggle('app')} styles={styles}>
-          <View style={styles.row}>
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => router.push('/historial-versiones' as Href)}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir historial de versiones"
+          >
             <Text style={styles.rowLabel}>Versión</Text>
-            <Text style={styles.rowValue}>{Constants.expoConfig?.version ?? '—'}</Text>
-          </View>
+            <View style={styles.versionLink}>
+              <Text style={styles.rowValue}>{Constants.expoConfig?.version ?? '—'}</Text>
+              <Text style={styles.chevron}>›</Text>
+            </View>
+          </Pressable>
           <View style={styles.rowDivider} />
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Plataforma</Text>
@@ -337,7 +354,10 @@ function makeStyles(C: ThemeColors) {
       zIndex: 10, elevation: 6, backgroundColor: C.background,
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
-    page: { padding: 20, paddingTop: 20, paddingBottom: 48 },
+    page: {
+      padding: 20, paddingTop: 20, paddingBottom: 48,
+      width: '100%', maxWidth: 720, alignSelf: 'center',
+    },
 
     // ── Secciones colapsables ──
     group: { marginBottom: 12 },
@@ -367,6 +387,7 @@ function makeStyles(C: ThemeColors) {
     rowSublabel: { fontSize: 12, color: C.textMuted },
     rowValue: { fontSize: 14, color: C.textMuted, maxWidth: '55%', textAlign: 'right' },
     chevron: { fontSize: 20, color: C.textFaint, lineHeight: 22 },
+    versionLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     destructive: { color: '#dc2626' },
     warningText: { color: '#b45309', fontSize: 13, lineHeight: 18, padding: 16 },
     profileInput: {

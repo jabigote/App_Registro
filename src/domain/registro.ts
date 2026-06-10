@@ -82,3 +82,13 @@ export function registroFingerprint(
   ].join('|');
 }
 
+export function mergeUniqueRegistros(existing: Registro[], incoming: Registro[]): Registro[] {
+  const fingerprints = new Set(existing.map(registroFingerprint));
+  const additions = incoming.filter(isRegistro).filter((registro) => {
+    const fingerprint = registroFingerprint(registro);
+    if (fingerprints.has(fingerprint)) return false;
+    fingerprints.add(fingerprint);
+    return true;
+  });
+  return [...additions, ...existing];
+}

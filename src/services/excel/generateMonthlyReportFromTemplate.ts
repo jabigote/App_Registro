@@ -14,6 +14,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import JSZip from 'jszip';
 
+import reportTemplate from '@/assets/templates/Reporte_Horas_2026.xlsx';
+
 // ─────────────────────────────────────────────
 // Tipos públicos
 // ─────────────────────────────────────────────
@@ -543,12 +545,12 @@ export async function generateMonthlyReportFromTemplate(
   input: MonthlyReportInput,
 ): Promise<string> {
   const { year, month, employeeName, records } = input;
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error('El mes del reporte debe estar entre 1 y 12.');
+  }
 
   // 1. Cargar plantilla original como base64
-  const asset = Asset.fromModule(
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('../../../assets/templates/Reporte_Horas_2026.xlsx') as number,
-  );
+  const asset = Asset.fromModule(reportTemplate);
   await asset.downloadAsync();
   if (!asset.localUri) throw new Error('No se pudo cargar la plantilla Excel.');
 
@@ -597,10 +599,12 @@ export async function generateMonthlyReportFromTemplate(
   sheetXml = writeHeaderCell(sheetXml, 'O4', `${MESES_ES[month - 1]} ${year}`, colStyles);
   sheetXml = writeHeaderCell(sheetXml, 'O6', employeeName, colStyles);
 
-  // 6. Escribir cada registro diario
-  for (const record of records) {
-    const { day } = record;
-    if (day < 1 || day > 31) continue;
+  // 6. Limpiar y escribir todos los días para evitar datos residuales de la plantilla.
+  const recordsByDay = new Map(
+    records.filter((record) => record.day >= 1 && record.day <= 31).map((record) => [record.day, record]),
+  );
+  for (let day = 1; day <= 31; day++) {
+    const record = recordsByDay.get(day) ?? { day };
     const rowNum    = 13 + day;
     const colValues = resolveDailyExcelValues(record);
     sheetXml = processDataRow(sheetXml, rowNum, colValues, colStyles);

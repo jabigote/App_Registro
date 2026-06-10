@@ -15,7 +15,7 @@ import { parseHoursInput } from '@/utils/time';
 export default function RegistroDetalleScreen() {
   const { id, editMode: editParam } = useLocalSearchParams<{ id: string; editMode?: string }>();
   const router = useRouter();
-  const { registros, updateRegistro, deleteRegistro } = useRegistro();
+  const { registros, addRegistro, updateRegistro, deleteRegistro } = useRegistro();
   const { toast, showToast, dismissToast } = useToast();
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -48,6 +48,8 @@ export default function RegistroDetalleScreen() {
     duracion,
     mixedDuration,
     effectiveDuration,
+    validationError,
+    extrasError,
     canSave,
   } = useJornadaForm({
     initialTipo:          registro?.titulo ?? '',
@@ -98,10 +100,29 @@ export default function RegistroDetalleScreen() {
         {
           text: 'Eliminar',
           style: 'destructive',
-          onPress: async () => { await deleteRegistro(id!); router.back(); },
+          onPress: async () => {
+            try {
+              await deleteRegistro(id!);
+              router.back();
+            } catch {
+              showToast('No se pudo eliminar la jornada.', 'error');
+            }
+          },
         },
       ]
     );
+  };
+
+  const duplicateRegistro = async () => {
+    if (!registro) return;
+    const { id: _id, createdAt: _createdAt, ...copy } = registro;
+    try {
+      await addRegistro(copy);
+      setMenuVisible(false);
+      showToast('Jornada duplicada.');
+    } catch {
+      showToast('No se pudo duplicar la jornada.', 'error');
+    }
   };
 
   const handleGuardar = async () => {
@@ -186,6 +207,10 @@ export default function RegistroDetalleScreen() {
             onPress={() => { setMenuVisible(false); setEditMode(true); }}
           >
             <Text style={styles.floatingMenuText}>Editar</Text>
+          </Pressable>
+          <View style={styles.floatingMenuDivider} />
+          <Pressable style={styles.floatingMenuItem} onPress={duplicateRegistro}>
+            <Text style={styles.floatingMenuText}>Duplicar jornada</Text>
           </Pressable>
           <View style={styles.floatingMenuDivider} />
           <Pressable style={styles.floatingMenuItem} onPress={confirmDelete}>
@@ -347,6 +372,7 @@ export default function RegistroDetalleScreen() {
                     {duracion ?? 'Revisa los horarios'}
                   </Text>
                 </View>
+                {validationError ? <Text style={styles.fieldError}>{validationError}</Text> : null}
               </View>
             )}
 
@@ -381,6 +407,7 @@ export default function RegistroDetalleScreen() {
                     {mixedDuration ?? 'Introduce al menos un tramo'}
                   </Text>
                 </View>
+                {validationError ? <Text style={styles.fieldError}>{validationError}</Text> : null}
               </View>
             )}
 
@@ -419,13 +446,14 @@ export default function RegistroDetalleScreen() {
             <View style={styles.fieldset}>
               <Text style={styles.fieldLabel}>Horas extras (+25 %)</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, extrasError && styles.inputError]}
                 value={horasExtras}
                 onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.:,]/g, ''))}
                 keyboardType="decimal-pad"
                 placeholder="0"
                 placeholderTextColor={C.textFaint}
               />
+              {extrasError ? <Text style={styles.fieldError}>{extrasError}</Text> : null}
             </View>
 
             {/* Descripción */}
@@ -481,7 +509,10 @@ function makeStyles(C: ThemeColors) {
     floatingMenuText: { fontSize: 15, fontWeight: '600', color: C.text },
     floatingMenuDestructive: { color: '#dc2626' },
     floatingMenuDivider: { height: 1, backgroundColor: C.separator, marginHorizontal: 8 },
-    page: { padding: 24, paddingTop: 16, gap: 4, paddingBottom: 40 },
+    page: {
+      padding: 24, paddingTop: 16, gap: 4, paddingBottom: 40,
+      width: '100%', maxWidth: 720, alignSelf: 'center',
+    },
     infoCard: {
       backgroundColor: C.card, borderRadius: 22, overflow: 'hidden',
       borderWidth: 1, borderColor: C.border,
@@ -525,6 +556,8 @@ function makeStyles(C: ThemeColors) {
     totalLabel: { fontSize: 13, color: C.textMuted, fontWeight: '600' },
     totalValue: { fontSize: 16, fontWeight: '800', color: C.text },
     totalInvalid: { color: '#f59e0b', fontSize: 13, fontWeight: '600' },
+    inputError: { borderColor: '#f59e0b', borderWidth: 1.5 },
+    fieldError: { fontSize: 12, color: '#f59e0b', fontWeight: '600' },
     select: {
       backgroundColor: C.card, borderRadius: 16, padding: 16,
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

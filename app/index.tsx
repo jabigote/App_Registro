@@ -19,15 +19,13 @@ const TIPO_COLORS: Record<string, string> = {
   Casa:        '#22c55e',
 };
 
-function useElapsedTimer(inicio: string | undefined, active: boolean): string {
+function useElapsedTimer(fecha: string | undefined, inicio: string | undefined, active: boolean): string {
   const [elapsed, setElapsed] = useState('');
 
   useEffect(() => {
     if (!active || !inicio) { setElapsed(''); return; }
     const update = () => {
-      const [h, m] = inicio.split(':').map(Number);
-      const start = new Date();
-      start.setHours(h, m, 0, 0);
+      const start = new Date(`${fecha}T${inicio}:00`);
       const diffMs = Date.now() - start.getTime();
       if (diffMs < 0) { setElapsed(''); return; }
       const totalMin = Math.floor(diffMs / 60000);
@@ -38,7 +36,7 @@ function useElapsedTimer(inicio: string | undefined, active: boolean): string {
     update();
     const id = setInterval(update, 30000);
     return () => clearInterval(id);
-  }, [inicio, active]);
+  }, [fecha, inicio, active]);
 
   return elapsed;
 }
@@ -53,6 +51,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { registros, loading, quickEntry, saveQuickEntry } = useRegistro();
   const { toast, showToast, dismissToast } = useToast();
+  const [quickSaving, setQuickSaving] = useState(false);
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -60,7 +59,7 @@ export default function HomeScreen() {
   const recientes = registros.slice(0, 5);
 
   const timerActive = Boolean(quickEntry && !quickEntry.fin);
-  const elapsed = useElapsedTimer(quickEntry?.inicio, timerActive);
+  const elapsed = useElapsedTimer(quickEntry?.fecha, quickEntry?.inicio, timerActive);
 
   // Horas totales del mes actual
   const horasMes = useMemo(() => {
@@ -79,18 +78,33 @@ export default function HomeScreen() {
   }, [registros]);
 
   const handleEntrada = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const rounded = roundDateToNearest30(new Date());
-    await saveQuickEntry({ fecha: dateToDateStr(rounded.date), inicio: rounded.time });
-    showToast(`Entrada registrada: ${rounded.time}`);
+    if (quickSaving) return;
+    setQuickSaving(true);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const rounded = roundDateToNearest30(new Date());
+      await saveQuickEntry({ fecha: dateToDateStr(rounded.date), inicio: rounded.time });
+      showToast(`Entrada registrada: ${rounded.time}`);
+    } catch {
+      showToast('No se pudo registrar la entrada.', 'error');
+    } finally {
+      setQuickSaving(false);
+    }
   };
 
   const handleSalida = async () => {
-    if (!quickEntry) return;
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const rounded = roundDateToNearest30(new Date());
-    await saveQuickEntry({ ...quickEntry, fin: rounded.time });
-    showToast(`Salida registrada: ${rounded.time}`);
+    if (!quickEntry || quickSaving) return;
+    setQuickSaving(true);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const rounded = roundDateToNearest30(new Date());
+      await saveQuickEntry({ ...quickEntry, fin: rounded.time });
+      showToast(`Salida registrada: ${rounded.time}`);
+    } catch {
+      showToast('No se pudo registrar la salida.', 'error');
+    } finally {
+      setQuickSaving(false);
+    }
   };
 
   const handleCompletarJornada = () => {
@@ -107,8 +121,16 @@ export default function HomeScreen() {
   };
 
   const handleCancelarEntrada = async () => {
-    await saveQuickEntry(null);
-    showToast('Entrada cancelada');
+    if (quickSaving) return;
+    setQuickSaving(true);
+    try {
+      await saveQuickEntry(null);
+      showToast('Entrada cancelada');
+    } catch {
+      showToast('No se pudo cancelar la entrada.', 'error');
+    } finally {
+      setQuickSaving(false);
+    }
   };
 
   // Estado descriptivo del fichaje actual
@@ -139,6 +161,9 @@ export default function HomeScreen() {
           </View>
 
           <Text style={styles.fichajeEstado}>{fichajeEstado}</Text>
+          {quickEntry && quickEntry.fecha !== dateToDateStr(new Date()) ? (
+            <Text style={styles.quickWarning}>Este fichaje pertenece al {quickEntry.fecha}. Revísalo antes de continuar.</Text>
+          ) : null}
 
           {quickEntry?.fin ? (
             <View style={styles.fichajeActions}>
@@ -156,14 +181,23 @@ export default function HomeScreen() {
                   <Text style={styles.btnSecondaryText}>Cancelar</Text>
                 </Pressable>
               ) : (
-                <Pressable style={styles.btnEntrada} onPress={handleEntrada}>
+                <Pressable
+                  style={styles.btnEntrada}
+                  onPress={handleEntrada}
+                  disabled={quickSaving}
+                  accessibilityRole="button"
+                  accessibilityLabel="Registrar entrada"
+                >
                   <Text style={styles.btnPrimaryText}>Entrada</Text>
                 </Pressable>
               )}
               <Pressable
                 style={[styles.btnPrimary, !quickEntry && styles.btnDisabled]}
                 onPress={handleSalida}
-                disabled={!quickEntry}
+                disabled={!quickEntry || quickSaving}
+                accessibilityState={{ disabled: !quickEntry || quickSaving }}
+                accessibilityRole="button"
+                accessibilityLabel="Registrar salida"
               >
                 <Text style={styles.btnPrimaryText}>Salida</Text>
               </Pressable>
@@ -249,7 +283,10 @@ function makeStyles(C: ThemeColors) {
       zIndex: 10, elevation: 6, backgroundColor: C.background,
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
-    page: { padding: 24, paddingTop: 20, gap: 20, paddingBottom: 40 },
+    page: {
+      padding: 24, paddingTop: 20, gap: 20, paddingBottom: 40,
+      width: '100%', maxWidth: 900, alignSelf: 'center',
+    },
 
     // ── Fichaje rápido ──
     fichajeSection: { gap: 12 },
@@ -265,6 +302,7 @@ function makeStyles(C: ThemeColors) {
     },
     timerText: { fontSize: 13, fontWeight: '700', color: '#22c55e' },
     fichajeEstado: { fontSize: 22, fontWeight: '700', color: C.text },
+    quickWarning: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: '#b45309' },
     fichajeActions: { flexDirection: 'row', gap: 12 },
     btnPrimary: {
       flex: 1, backgroundColor: Colors.brand, borderRadius: 16,

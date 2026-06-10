@@ -48,6 +48,8 @@ export default function NuevoRegistroScreen() {
     duracion,
     mixedDuration,
     effectiveDuration,
+    validationError,
+    extrasError,
     canSave,
   } = useJornadaForm({
     initialInicio1:     inicioPreset      ?? '08:00',
@@ -57,8 +59,6 @@ export default function NuevoRegistroScreen() {
     initialDescripcion: descripcionPreset ?? '',
     resetOnTipoChange:  true,
   });
-
-  const horasExtrasInvalid = horasExtras.trim().length > 0 && parseHoursInput(horasExtras) === null;
 
   const handleGuardar = async () => {
     if (!canSave || !effectiveDuration || saving) return;
@@ -99,7 +99,7 @@ export default function NuevoRegistroScreen() {
       }
       if (inicioPreset) await saveQuickEntry(null);
       showToast('Jornada guardada');
-      navTimerRef.current = setTimeout(() => router.push('/registros'), 1200);
+      navTimerRef.current = setTimeout(() => router.replace('/registros'), 1200);
     } catch {
       showToast('Error al guardar. Inténtalo de nuevo.');
     } finally {
@@ -149,6 +149,8 @@ export default function NuevoRegistroScreen() {
                 key={tipo.value}
                 style={[styles.tipoChip, tipoJornada === tipo.value && styles.tipoChipActive]}
                 onPress={() => setTipoJornada(tipo.value)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: tipoJornada === tipo.value }}
               >
                 <Text style={[styles.tipoChipText, tipoJornada === tipo.value && styles.tipoChipTextActive]}>
                   {tipo.label}
@@ -221,6 +223,7 @@ export default function NuevoRegistroScreen() {
                 {duracion ?? 'Revisa los horarios'}
               </Text>
             </View>
+            {validationError ? <Text style={styles.fieldError}>{validationError}</Text> : null}
           </View>
         )}
 
@@ -255,6 +258,7 @@ export default function NuevoRegistroScreen() {
                 {mixedDuration ?? 'Introduce al menos un tramo'}
               </Text>
             </View>
+            {validationError ? <Text style={styles.fieldError}>{validationError}</Text> : null}
           </View>
         )}
 
@@ -298,13 +302,14 @@ export default function NuevoRegistroScreen() {
           <View style={styles.fieldset}>
             <Text style={styles.fieldLabel}>Horas extras (+25 %)</Text>
             <TextInput
-              style={[styles.input, styles.inputCompact, horasExtrasInvalid && styles.inputError]}
+              style={[styles.input, styles.inputCompact, extrasError && styles.inputError]}
               placeholder="0"
               placeholderTextColor={C.textFaint}
               value={horasExtras}
               onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.:,]/g, ''))}
               keyboardType="numbers-and-punctuation"
             />
+            {extrasError ? <Text style={styles.fieldError}>{extrasError}</Text> : null}
           </View>
         )}
 
@@ -327,6 +332,8 @@ export default function NuevoRegistroScreen() {
           style={[styles.buttonPrimary, (!canSave || saving) && styles.buttonDisabled]}
           onPress={handleGuardar}
           disabled={!canSave || saving}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !canSave || saving }}
         >
           <Text style={styles.buttonPrimaryText}>{saving ? 'Guardando…' : 'Guardar'}</Text>
         </Pressable>
@@ -344,7 +351,10 @@ function makeStyles(C: ThemeColors) {
       zIndex: 10, elevation: 6, backgroundColor: C.background,
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
-    page: { padding: 24, paddingTop: 16, gap: 4, paddingBottom: 40 },
+    page: {
+      padding: 24, paddingTop: 16, gap: 4, paddingBottom: 40,
+      width: '100%', maxWidth: 720, alignSelf: 'center',
+    },
     title: { fontSize: 30, fontWeight: '800', color: C.text },
     subtitle: { marginTop: 4, marginBottom: 8, color: C.textSecondary, fontSize: 15, lineHeight: 22 },
     required: { color: Colors.brand },

@@ -34,7 +34,7 @@ function getTimeDisplay(r: Registro): string {
 type Section = { title: string; data: Registro[] };
 
 export default function RegistrosScreen() {
-  const { registros, loading, deleteRegistro } = useRegistro();
+  const { registros, loading, deleteRegistro, mergeRegistros } = useRegistro();
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
@@ -78,6 +78,7 @@ export default function RegistrosScreen() {
   };
 
   const handleDelete = (id: string) => {
+    const deleted = registros.find((registro) => registro.id === id);
     swipeableRefs.current.get(id)?.close();
     Alert.alert('Eliminar jornada', '¿Seguro que quieres eliminar esta jornada?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -85,8 +86,17 @@ export default function RegistrosScreen() {
         text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
-          await deleteRegistro(id);
-          showToast('Jornada eliminada');
+          try {
+            await deleteRegistro(id);
+            showToast('Jornada eliminada', 'success', deleted ? {
+              label: 'Deshacer',
+              onPress: () => {
+                mergeRegistros([deleted]).catch(() => showToast('No se pudo recuperar la jornada.', 'error'));
+              },
+            } : undefined);
+          } catch {
+            showToast('No se pudo eliminar la jornada.', 'error');
+          }
         },
       },
     ]);
@@ -180,6 +190,8 @@ export default function RegistrosScreen() {
           <Pressable
             style={[styles.filterChip, !tipoFiltro && styles.filterChipActive]}
             onPress={() => setTipoFiltro(null)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !tipoFiltro }}
           >
             <Text style={[styles.filterChipText, !tipoFiltro && styles.filterChipTextActive]}>Todos</Text>
           </Pressable>
@@ -188,6 +200,8 @@ export default function RegistrosScreen() {
               key={tipo}
               style={[styles.filterChip, tipoFiltro === tipo && styles.filterChipActive]}
               onPress={() => setTipoFiltro((prev) => (prev === tipo ? null : tipo))}
+              accessibilityRole="button"
+              accessibilityState={{ selected: tipoFiltro === tipo }}
             >
               <Text style={[styles.filterChipText, tipoFiltro === tipo && styles.filterChipTextActive]}>
                 {tipo}
@@ -262,7 +276,10 @@ function makeStyles(C: ThemeColors) {
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    page: { padding: 24, paddingTop: 0, paddingBottom: 40 },
+    page: {
+      padding: 24, paddingTop: 0, paddingBottom: 40,
+      width: '100%', maxWidth: 900, alignSelf: 'center',
+    },
     listHeader: { gap: 10, marginBottom: 4, marginTop: 16 },
     title: { fontSize: 30, fontWeight: '800', color: C.text, marginBottom: 2 },
     searchContainer: {

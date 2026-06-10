@@ -87,7 +87,7 @@ function makeStyles(C: ThemeColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.background },
     flex: { flex: 1 },
-    page: { padding: 32, gap: 20, flexGrow: 1 },
+    page: { padding: 32, gap: 20, flexGrow: 1, width: '100%', maxWidth: 600, alignSelf: 'center' },
     logoContainer: { alignItems: 'flex-start', marginTop: 24, marginBottom: 8 },
     iconButton: {
       width: 64, height: 64, borderRadius: 22,

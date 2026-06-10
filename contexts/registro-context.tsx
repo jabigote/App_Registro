@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
-import { isRegistro, registroFingerprint, type QuickEntry, type Registro } from '@/src/domain/registro';
+import { isRegistro, mergeUniqueRegistros, type QuickEntry, type Registro } from '@/src/domain/registro';
 import { loadRegistroData, saveQuickEntryValue, saveRegistros } from '@/src/repositories/registro-repository';
 import { cancelFichajeReminder, scheduleFichajeReminder } from '@/utils/notifications';
 
@@ -99,15 +99,10 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
   };
 
   const mergeRegistros = async (incoming: Registro[]) => {
-    const fingerprints = new Set(registrosRef.current.map(registroFingerprint));
-    const additions = incoming.filter(isRegistro).filter((r) => {
-      const fingerprint = registroFingerprint(r);
-      if (fingerprints.has(fingerprint)) return false;
-      fingerprints.add(fingerprint);
-      return true;
-    });
-    if (additions.length > 0) await replaceRegistros([...additions, ...registrosRef.current]);
-    return additions.length;
+    const merged = mergeUniqueRegistros(registrosRef.current, incoming);
+    const additions = merged.length - registrosRef.current.length;
+    if (additions > 0) await replaceRegistros(merged);
+    return additions;
   };
 
   const clearRegistros = async () => replaceRegistros([]);

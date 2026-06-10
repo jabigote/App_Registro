@@ -79,15 +79,6 @@ function fmtH(h: number | undefined): string {
 }
 
 /** Rechaza si la generación tarda más de `ms`: evita un "Generando…" infinito sin feedback. */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Generación cancelada tras ${ms / 1000}s`)), ms),
-    ),
-  ]);
-}
-
 export default function RegistroMensualScreen() {
   const { registros } = useRegistro();
   const { usuario } = useAuth();
@@ -181,15 +172,12 @@ export default function RegistroMensualScreen() {
     if (exporting) return;
     setExporting(true);
     try {
-      const uri = await withTimeout(
-        generateMonthlyReportFromTemplate({
-          year,
-          month:        month + 1,
-          employeeName: usuario?.nombre ?? 'Empleado',
-          records:      buildRecords(),
-        }),
-        60000,
-      );
+      const uri = await generateMonthlyReportFromTemplate({
+        year,
+        month:        month + 1,
+        employeeName: usuario?.nombre ?? 'Empleado',
+        records:      buildRecords(),
+      });
       setPendingShareUri(uri);
       setShowPreview(false); // el share sheet se lanza en onDismiss del modal
     } catch (e) {
@@ -534,7 +522,10 @@ function makeStyles(C: ThemeColors) {
       zIndex: 10, elevation: 6, backgroundColor: C.background,
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
-    page: { padding: 24, paddingTop: 16, gap: 18, paddingBottom: 40 },
+    page: {
+      padding: 24, paddingTop: 16, gap: 18, paddingBottom: 40,
+      width: '100%', maxWidth: 900, alignSelf: 'center',
+    },
     title: { fontSize: 30, fontWeight: '800', color: C.text },
 
     monthNav: {

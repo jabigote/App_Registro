@@ -1,18 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-type ToastEntry = { message: string; type: 'success' | 'error'; key: number };
+type ToastEntry = {
+  message: string;
+  type: 'success' | 'error';
+  key: number;
+  actionLabel?: string;
+  onAction?: () => void;
+};
 
 export function useToast() {
   const [toast, setToast] = useState<ToastEntry | null>(null);
   const counter = useRef(0);
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+  const showToast = useCallback((
+    message: string,
+    type: 'success' | 'error' = 'success',
+    action?: { label: string; onPress: () => void },
+  ) => {
     counter.current += 1;
-    setToast({ message, type, key: counter.current });
+    setToast({ message, type, key: counter.current, actionLabel: action?.label, onAction: action?.onPress });
   }, []);
 
   const dismissToast = useCallback(() => setToast(null), []);
@@ -54,7 +64,14 @@ export function Toast({ toast, onDismiss }: ToastProps) {
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
     >
-      <Text style={styles.text}>{toast.message}</Text>
+      <View style={styles.row}>
+        <Text style={styles.text}>{toast.message}</Text>
+        {toast.actionLabel && toast.onAction ? (
+          <Pressable onPress={() => { toast.onAction?.(); onDismiss(); }} accessibilityRole="button">
+            <Text style={styles.action}>{toast.actionLabel}</Text>
+          </Pressable>
+        ) : null}
+      </View>
     </Animated.View>
   );
 }
@@ -82,4 +99,6 @@ const styles = StyleSheet.create({
   containerDark: { backgroundColor: '#2e3446' },
   containerError: { backgroundColor: '#dc2626' },
   text: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  action: { color: '#ffffff', fontSize: 14, fontWeight: '900', textDecorationLine: 'underline' },
 });

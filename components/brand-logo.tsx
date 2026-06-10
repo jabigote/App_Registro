@@ -16,6 +16,7 @@ const ROUTE_LABELS: Record<string, string> = {
   nuevo:              'Nueva jornada',
   'registro-mensual': 'Mensual',
   'registro-detalle': 'Jornada',
+  'historial-versiones': 'Versiones',
   ajustes:            'Ajustes',
 };
 

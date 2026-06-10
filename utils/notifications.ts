@@ -1,6 +1,8 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
 const REMINDER_HOURS = 9;
+export const NOTIFICATION_REMINDER_KEY = '@salvagnini_notif_cierre';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -13,6 +15,8 @@ Notifications.setNotificationHandler({
 
 export async function scheduleFichajeReminder(inicio: string, fecha?: string): Promise<string | null> {
   try {
+    const enabled = await AsyncStorage.getItem(NOTIFICATION_REMINDER_KEY);
+    if (enabled === 'false') return null;
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== 'granted') return null;
 

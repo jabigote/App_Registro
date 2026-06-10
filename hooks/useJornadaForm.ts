@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { type Dieta } from '@/contexts/registro-context';
-import { fmtDuration, parseHoursInput, parseTime } from '@/utils/time';
+import { calculateScheduleMinutes, fmtDuration, parseHoursInput } from '@/utils/time';
 
 export const TIPOS_JORNADA = [
   { value: 'Oficina',     label: 'Oficina' },
@@ -65,23 +65,11 @@ export function useJornadaForm(options: JornadaFormOptions = {}) {
 
   const { duracion, scheduleError } = useMemo(() => {
     if (isMixed) return { duracion: null, scheduleError: null };
-    const s1 = parseTime(inicio1); const e1 = parseTime(fin1);
-    if (s1 === null || e1 === null || e1 <= s1) {
-      return { duracion: null, scheduleError: 'El primer tramo no es válido.' };
-    }
-    let total = e1 - s1;
-    const has2 = inicio2.trim().length > 0 || fin2.trim().length > 0;
-    if (has2) {
-      const s2 = parseTime(inicio2); const e2 = parseTime(fin2);
-      if (s2 === null || e2 === null || e2 <= s2) {
-        return { duracion: null, scheduleError: 'Completa correctamente el segundo tramo.' };
-      }
-      if (s2 < e1) {
-        return { duracion: null, scheduleError: 'Los tramos horarios no pueden solaparse.' };
-      }
-      total += e2 - s2;
-    }
-    return { duracion: fmtDuration(total), scheduleError: null };
+    const result = calculateScheduleMinutes(inicio1, fin1, inicio2, fin2);
+    return {
+      duracion: result.minutes === null ? null : fmtDuration(result.minutes),
+      scheduleError: result.error,
+    };
   }, [isMixed, inicio1, fin1, inicio2, fin2]);
 
   const { mixedDuration, mixedError } = useMemo(() => {

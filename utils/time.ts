@@ -58,3 +58,30 @@ export function durationToMinutes(duracion: string): number {
   const m = duracion.match(/(\d+)m/);
   return (h ? parseInt(h[1], 10) : 0) * 60 + (m ? parseInt(m[1], 10) : 0);
 }
+
+export function calculateScheduleMinutes(
+  inicio1: string,
+  fin1: string,
+  inicio2 = '',
+  fin2 = '',
+): { minutes: number | null; error: string | null } {
+  const s1 = parseTime(inicio1);
+  const e1 = parseTime(fin1);
+  if (s1 === null || e1 === null || e1 <= s1) {
+    return { minutes: null, error: 'El primer tramo no es válido.' };
+  }
+  let minutes = e1 - s1;
+  const hasSecond = inicio2.trim().length > 0 || fin2.trim().length > 0;
+  if (hasSecond) {
+    const s2 = parseTime(inicio2);
+    const e2 = parseTime(fin2);
+    if (s2 === null || e2 === null || e2 <= s2) {
+      return { minutes: null, error: 'Completa correctamente el segundo tramo.' };
+    }
+    if (s2 < e1) {
+      return { minutes: null, error: 'Los tramos horarios no pueden solaparse.' };
+    }
+    minutes += e2 - s2;
+  }
+  return { minutes, error: null };
+}
