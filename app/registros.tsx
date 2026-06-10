@@ -288,8 +288,9 @@ function makeStyles(C: ThemeColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.background },
     header: {
-      paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4,
+      paddingHorizontal: 24, paddingTop: 10, paddingBottom: 14,
       zIndex: 10, elevation: 6, backgroundColor: C.background,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     page: { padding: 24, paddingTop: 0, paddingBottom: 40 },

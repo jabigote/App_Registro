@@ -20,16 +20,16 @@ export function BrandLogo() {
 
   const openMenu = () => {
     setMenuVisible(true);
-    Animated.spring(menuAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }).start();
+    Animated.spring(menuAnim, {
+      toValue: 1, useNativeDriver: true, tension: 80, friction: 8,
+    }).start();
   };
 
   const closeMenu = () => {
-    Animated.timing(menuAnim, { toValue: 0, duration: 160, useNativeDriver: true }).start(() =>
-      setMenuVisible(false)
-    );
+    Animated.timing(menuAnim, {
+      toValue: 0, duration: 160, useNativeDriver: true,
+    }).start(() => setMenuVisible(false));
   };
-
-  const toggleMenu = () => (menuVisible ? closeMenu() : openMenu());
 
   const handleNavigate = (path: '/' | '/nuevo' | '/registros' | '/registro-mensual' | '/ajustes') => {
     closeMenu();
@@ -38,22 +38,20 @@ export function BrandLogo() {
 
   return (
     <View style={styles.container}>
-      {/* Logo SALVAGNINI a toda la anchura. El webp original (1280×720) tiene el wordmark
-          en una banda central: cover recorta el blanco vertical y lo muestra grande. */}
-      {!logoFailed ? (
-        <Image
-          source={brandLogo}
-          style={styles.logoImage}
-          contentFit="cover"
-          onError={() => setLogoFailed(true)}
-        />
-      ) : (
-        <Text style={styles.brandName}>SALVAGNINI</Text>
-      )}
+      {/* Una sola fila: logo (flex:1) + botón S a la derecha */}
+      <View style={styles.row}>
+        {!logoFailed ? (
+          <Image
+            source={brandLogo}
+            style={styles.logoImage}
+            contentFit="cover"
+            onError={() => setLogoFailed(true)}
+          />
+        ) : (
+          <Text style={styles.brandName}>SALVAGNINI</Text>
+        )}
 
-      {/* Fila inferior: icono S como botón de menú */}
-      <View style={styles.navRow}>
-        <Pressable style={styles.iconButton} onPress={toggleMenu}>
+        <Pressable style={styles.iconButton} onPress={() => (menuVisible ? closeMenu() : openMenu())}>
           {!markFailed ? (
             <Image
               source={brandMark}
@@ -75,18 +73,8 @@ export function BrandLogo() {
             {
               opacity: menuAnim,
               transform: [
-                {
-                  scale: menuAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.92, 1],
-                  }),
-                },
-                {
-                  translateY: menuAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-8, 0],
-                  }),
-                },
+                { scale: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
+                { translateY: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) },
               ],
             },
           ]}
@@ -114,10 +102,12 @@ export function BrandLogo() {
 
 function makeStyles(C: ThemeColors) {
   return StyleSheet.create({
-    container: { gap: 10, position: 'relative' },
-    logoImage: { width: '100%', height: 64, borderRadius: 12 },
-    brandName: { fontSize: 44, fontWeight: '900', color: Colors.brand, letterSpacing: 1, textAlign: 'center' },
-    navRow: { flexDirection: 'row', alignItems: 'center' },
+    container: { position: 'relative' },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    // El webp es 1280×720 con el wordmark centrado. Cover a height:52 recorta
+    // las bandas blancas superiores/inferiores y muestra la zona central del logotipo.
+    logoImage: { flex: 1, height: 52, borderRadius: 10 },
+    brandName: { flex: 1, fontSize: 38, fontWeight: '900', color: Colors.brand, letterSpacing: 1 },
     iconButton: {
       width: 48, height: 48, borderRadius: 15,
       backgroundColor: Colors.brand,
@@ -128,11 +118,11 @@ function makeStyles(C: ThemeColors) {
     icon: { width: 26, height: 26 },
     iconFallback: { fontSize: 20, fontWeight: '900', color: '#ffffff' },
     menu: {
-      position: 'absolute', top: '100%', left: 0, zIndex: 10, width: 210, marginTop: 6,
+      position: 'absolute', top: 60, right: 0, zIndex: 100, width: 210,
       backgroundColor: C.card, borderRadius: 18,
       paddingVertical: 10, paddingHorizontal: 14,
-      shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 18,
-      shadowOffset: { width: 0, height: 12 }, elevation: 6,
+      shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 20,
+      shadowOffset: { width: 0, height: 12 }, elevation: 8,
     },
     menuItem: { paddingVertical: 13 },
     menuItemText: { fontSize: 15, color: C.text, fontWeight: '700' },

@@ -118,7 +118,6 @@ export default function NuevoRegistroScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>Registro de jornada</Text>
-        <Text style={styles.subtitle}>Captura los detalles de tu jornada de trabajo.</Text>
 
         {/* Fecha */}
         <View style={styles.fieldset}>
@@ -345,8 +344,9 @@ function makeStyles(C: ThemeColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.background },
     header: {
-      paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4,
+      paddingHorizontal: 24, paddingTop: 10, paddingBottom: 14,
       zIndex: 10, elevation: 6, backgroundColor: C.background,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
     page: { padding: 24, paddingTop: 16, gap: 4, paddingBottom: 40 },
     title: { fontSize: 30, fontWeight: '800', color: C.text },

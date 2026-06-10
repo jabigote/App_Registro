@@ -43,6 +43,12 @@ function useElapsedTimer(inicio: string | undefined, active: boolean): string {
   return elapsed;
 }
 
+function durationToMinutes(duracion: string): number {
+  const h = duracion.match(/(\d+)h/);
+  const m = duracion.match(/(\d+)m/);
+  return (h ? parseInt(h[1]) : 0) * 60 + (m ? parseInt(m[1]) : 0);
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const { registros, loading, quickEntry, saveQuickEntry } = useRegistro();
@@ -51,11 +57,26 @@ export default function HomeScreen() {
   const styles = useMemo(() => makeStyles(C), [C]);
 
   const total = registros.length;
-  const latest = registros[0];
-  const recientes = registros.slice(0, 3);
+  const recientes = registros.slice(0, 5);
 
   const timerActive = Boolean(quickEntry && !quickEntry.fin);
   const elapsed = useElapsedTimer(quickEntry?.inicio, timerActive);
+
+  // Horas totales del mes actual
+  const horasMes = useMemo(() => {
+    const now = new Date();
+    const mes = now.getMonth();
+    const año = now.getFullYear();
+    const totalMin = registros
+      .filter((r) => {
+        const d = r.fecha ? new Date(`${r.fecha}T12:00:00`) : new Date(r.createdAt);
+        return d.getMonth() === mes && d.getFullYear() === año;
+      })
+      .reduce((sum, r) => sum + durationToMinutes(r.duracion), 0);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : '—';
+  }, [registros]);
 
   const handleEntrada = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -90,138 +111,132 @@ export default function HomeScreen() {
     showToast('Entrada cancelada');
   };
 
+  // Estado descriptivo del fichaje actual
+  const fichajeEstado = quickEntry?.fin
+    ? `${quickEntry.inicio} → ${quickEntry.fin}`
+    : quickEntry
+    ? `Entrada a las ${quickEntry.inicio}`
+    : 'Sin fichar';
+
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* ── Encabezado estático ── */}
       <View style={styles.header}>
         <BrandLogo />
       </View>
+
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Panel de control</Text>
 
-        {/* ── Fichaje rápido ── */}
-        <View style={styles.fichajeCard}>
-          <Text style={styles.fichajeTitle}>Fichaje rápido</Text>
-          <Text style={styles.fichajeStatus}>
-            {quickEntry?.fin
-              ? `Jornada: ${quickEntry.inicio} → ${quickEntry.fin}`
-              : quickEntry
-              ? `Entrada registrada · ${quickEntry.inicio}`
-              : 'Sin entrada registrada'}
-          </Text>
+        {/* ── Fichaje rápido: sección abierta, sin card ── */}
+        <View style={styles.fichajeSection}>
+          <View style={styles.fichajeTopRow}>
+            <Text style={styles.fichajeSectionLabel}>Fichaje rápido</Text>
+            {timerActive && elapsed ? (
+              <View style={styles.timerBadge}>
+                <Text style={styles.timerText}>{elapsed}</Text>
+              </View>
+            ) : null}
+          </View>
 
-          {/* Timer en vivo */}
-          {timerActive && elapsed ? (
-            <View style={styles.timerBadge}>
-              <Text style={styles.timerText}>Llevas {elapsed}</Text>
-            </View>
-          ) : null}
+          <Text style={styles.fichajeEstado}>{fichajeEstado}</Text>
 
           {quickEntry?.fin ? (
-            <View style={styles.fichajeRow}>
-              <Pressable style={styles.fichajeBtnSecondary} onPress={handleCancelarEntrada}>
-                <Text style={styles.fichajeBtnSecondaryText}>Cancelar</Text>
+            <View style={styles.fichajeActions}>
+              <Pressable style={styles.btnSecondary} onPress={handleCancelarEntrada}>
+                <Text style={styles.btnSecondaryText}>Cancelar</Text>
               </Pressable>
-              <Pressable style={[styles.fichajeBtnPrimary, { flex: 2 }]} onPress={handleCompletarJornada}>
-                <Text style={styles.fichajeBtnPrimaryText}>Completar jornada</Text>
+              <Pressable style={[styles.btnPrimary, { flex: 2 }]} onPress={handleCompletarJornada}>
+                <Text style={styles.btnPrimaryText}>Completar jornada →</Text>
               </Pressable>
             </View>
           ) : (
-            <View style={styles.fichajeRow}>
+            <View style={styles.fichajeActions}>
               {quickEntry ? (
-                <Pressable style={styles.fichajeBtnSecondary} onPress={handleCancelarEntrada}>
-                  <Text style={styles.fichajeBtnSecondaryText}>{quickEntry.inicio} · Cancelar</Text>
+                <Pressable style={styles.btnSecondary} onPress={handleCancelarEntrada}>
+                  <Text style={styles.btnSecondaryText}>Cancelar</Text>
                 </Pressable>
               ) : (
-                <Pressable style={styles.fichajeBtnEntrada} onPress={handleEntrada}>
-                  <Text style={styles.fichajeBtnPrimaryText}>Entrada</Text>
+                <Pressable style={styles.btnEntrada} onPress={handleEntrada}>
+                  <Text style={styles.btnPrimaryText}>Entrada</Text>
                 </Pressable>
               )}
               <Pressable
-                style={[styles.fichajeBtnPrimary, !quickEntry && styles.fichajeBtnDisabled]}
+                style={[styles.btnPrimary, !quickEntry && styles.btnDisabled]}
                 onPress={handleSalida}
                 disabled={!quickEntry}
               >
-                <Text style={styles.fichajeBtnPrimaryText}>Salida</Text>
+                <Text style={styles.btnPrimaryText}>Salida</Text>
               </Pressable>
             </View>
           )}
         </View>
 
-        {/* ── Estado general ── */}
-        <View style={styles.stateCard}>
-          <Text style={styles.stateLabel}>Jornadas</Text>
-          <Text style={styles.stateValue}>
-            {loading
-              ? 'Cargando...'
-              : total === 0
-              ? 'Sin jornadas registradas'
-              : `${total} jornada${total === 1 ? '' : 's'} guardada${total === 1 ? '' : 's'}`}
-          </Text>
-          {latest ? (
-            <Text style={styles.stateNote}>
-              {`${latest.titulo} · ${latest.inicio ? `${latest.inicio}–${latest.fin} · ` : ''}${latest.duracion}`}
-            </Text>
-          ) : null}
-        </View>
-
-        <View style={styles.actions}>
-          <Pressable style={styles.buttonPrimary} onPress={() => router.push('/nuevo')}>
-            <Text style={styles.buttonPrimaryText}>Nuevo registro completo</Text>
+        {/* ── Stats del mes en curso ── */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{loading ? '…' : total}</Text>
+            <Text style={styles.statLabel}>Jornadas</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{loading ? '…' : horasMes}</Text>
+            <Text style={styles.statLabel}>Este mes</Text>
+          </View>
+          <Pressable
+            style={[styles.statCard, styles.statCardAction]}
+            onPress={() => router.push('/registro-mensual')}
+          >
+            <Text style={[styles.statValue, { color: Colors.brand }]}>→</Text>
+            <Text style={[styles.statLabel, { color: Colors.brand }]}>Mensual</Text>
           </Pressable>
         </View>
+
+        {/* ── CTA nuevo registro ── */}
+        <Pressable style={styles.btnNuevo} onPress={() => router.push('/nuevo')}>
+          <Text style={styles.btnNuevoText}>+ Nueva jornada</Text>
+        </Pressable>
 
         {/* ── Últimas jornadas ── */}
         {!loading && recientes.length > 0 ? (
           <View style={styles.recentSection}>
-            <Text style={styles.recentTitle}>Últimas jornadas</Text>
+            <View style={styles.recentHeader}>
+              <Text style={styles.recentTitle}>Últimas jornadas</Text>
+              <Pressable onPress={() => router.push('/registros')}>
+                <Text style={styles.recentVerTodo}>Ver todo →</Text>
+              </Pressable>
+            </View>
             {recientes.map((r) => (
               <Pressable
                 key={r.id}
                 style={({ pressed }) => [styles.recentCard, pressed && styles.recentCardPressed]}
                 onPress={() => router.push({ pathname: '/registro-detalle', params: { id: r.id } })}
               >
-                {/* Etiqueta de tipo con color */}
-                <View
-                  style={[
-                    styles.tipoTag,
-                    { backgroundColor: `${TIPO_COLORS[r.titulo] ?? Colors.brand}20` },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.tipoDot,
-                      { backgroundColor: TIPO_COLORS[r.titulo] ?? Colors.brand },
-                    ]}
-                  />
-                  <Text
-                    style={[styles.tipoTagText, { color: TIPO_COLORS[r.titulo] ?? Colors.brand }]}
-                  >
-                    {r.titulo}
-                  </Text>
-                </View>
-
-                <View style={styles.recentCardBody}>
-                  <View style={styles.recentCardLeft}>
-                    {r.cliente ? (
-                      <Text style={styles.recentCardMeta} numberOfLines={1}>{r.cliente}</Text>
-                    ) : null}
-                    {r.inicio ? (
-                      <Text style={styles.recentCardMeta}>{`${r.inicio} — ${r.fin}`}</Text>
-                    ) : null}
+                <View style={styles.recentCardLeft}>
+                  <View style={[styles.tipoTag, { backgroundColor: `${TIPO_COLORS[r.titulo] ?? Colors.brand}20` }]}>
+                    <View style={[styles.tipoDot, { backgroundColor: TIPO_COLORS[r.titulo] ?? Colors.brand }]} />
+                    <Text style={[styles.tipoTagText, { color: TIPO_COLORS[r.titulo] ?? Colors.brand }]}>
+                      {r.titulo}
+                    </Text>
                   </View>
-                  <Text style={styles.recentCardDuracion}>{r.duracion}</Text>
+                  {r.cliente ? (
+                    <Text style={styles.recentMeta} numberOfLines={1}>{r.cliente}</Text>
+                  ) : null}
+                  {r.inicio ? (
+                    <Text style={styles.recentMeta}>{r.inicio} — {r.fin}</Text>
+                  ) : null}
                 </View>
+                <Text style={styles.recentDuracion}>{r.duracion}</Text>
               </Pressable>
             ))}
           </View>
         ) : !loading && recientes.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyTitle}>Sin jornadas aún</Text>
-            <Text style={styles.emptyText}>Registra tu primera jornada para verla aquí.</Text>
+            <Text style={styles.emptyTitle}>Sin jornadas registradas</Text>
+            <Text style={styles.emptyText}>Usa los botones de arriba para fichar tu primera jornada.</Text>
           </View>
         ) : null}
       </ScrollView>
+
       <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
   );
@@ -231,95 +246,90 @@ function makeStyles(C: ThemeColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.background },
     header: {
-      paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4,
+      paddingHorizontal: 24, paddingTop: 10, paddingBottom: 14,
       zIndex: 10, elevation: 6, backgroundColor: C.background,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
-    page: { padding: 24, paddingTop: 16, gap: 20, paddingBottom: 40 },
-    title: { fontSize: 32, fontWeight: '800', color: C.text, marginBottom: 4 },
+    page: { padding: 24, paddingTop: 20, gap: 20, paddingBottom: 40 },
+    title: { fontSize: 28, fontWeight: '800', color: C.text, textAlign: 'center' },
 
-    fichajeCard: {
-      backgroundColor: C.card, borderRadius: 24, padding: 20, gap: 12,
-      borderWidth: 1, borderColor: C.border,
-      shadowColor: '#000000', shadowOpacity: 0.06, shadowRadius: 20,
-      shadowOffset: { width: 0, height: 10 }, elevation: 3,
+    // ── Fichaje rápido ──
+    fichajeSection: { gap: 12 },
+    fichajeTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    fichajeSectionLabel: {
+      fontSize: 12, fontWeight: '800', color: Colors.brand,
+      textTransform: 'uppercase', letterSpacing: 1,
     },
-    fichajeTitle: {
-      fontSize: 13, fontWeight: '700', color: Colors.brand,
-      textTransform: 'uppercase', letterSpacing: 0.8,
-    },
-    fichajeStatus: { fontSize: 15, fontWeight: '600', color: C.textSecondary },
     timerBadge: {
-      alignSelf: 'flex-start',
-      backgroundColor: '#22c55e18',
-      borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5,
+      backgroundColor: '#22c55e18', borderRadius: 10,
+      paddingHorizontal: 12, paddingVertical: 4,
       borderWidth: 1, borderColor: '#22c55e40',
     },
-    timerText: { fontSize: 14, fontWeight: '700', color: '#22c55e' },
-    fichajeRow: { flexDirection: 'row', gap: 12 },
-    fichajeBtnPrimary: {
-      flex: 1, backgroundColor: Colors.brand, borderRadius: 14,
-      paddingVertical: 14, alignItems: 'center',
-    },
-    fichajeBtnEntrada: {
-      flex: 1, backgroundColor: '#22c55e', borderRadius: 14,
-      paddingVertical: 14, alignItems: 'center',
-    },
-    fichajeBtnDisabled: { backgroundColor: '#d1d5db' },
-    fichajeBtnPrimaryText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
-    fichajeBtnSecondary: {
-      flex: 1, backgroundColor: `${Colors.brand}15`, borderRadius: 14,
-      paddingVertical: 14, alignItems: 'center',
-      borderWidth: 1, borderColor: `${Colors.brand}40`,
-    },
-    fichajeBtnSecondaryText: { color: Colors.brand, fontSize: 14, fontWeight: '700' },
-
-    stateCard: {
-      backgroundColor: C.card, borderRadius: 24, padding: 24,
-      shadowColor: '#000000', shadowOpacity: 0.08, shadowRadius: 24,
-      shadowOffset: { width: 0, height: 12 }, elevation: 4,
-    },
-    stateLabel: {
-      fontSize: 14, fontWeight: '700', color: Colors.brand,
-      textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12,
-    },
-    stateValue: { fontSize: 24, fontWeight: '800', color: C.text, marginBottom: 8 },
-    stateNote: { fontSize: 15, lineHeight: 22, color: C.textSecondary },
-
-    actions: { gap: 14 },
-    buttonPrimary: {
-      backgroundColor: Colors.brand, borderRadius: 16,
+    timerText: { fontSize: 13, fontWeight: '700', color: '#22c55e' },
+    fichajeEstado: { fontSize: 22, fontWeight: '700', color: C.text },
+    fichajeActions: { flexDirection: 'row', gap: 12 },
+    btnPrimary: {
+      flex: 1, backgroundColor: Colors.brand, borderRadius: 16,
       paddingVertical: 16, alignItems: 'center',
     },
-    buttonPrimaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+    btnEntrada: {
+      flex: 1, backgroundColor: '#22c55e', borderRadius: 16,
+      paddingVertical: 16, alignItems: 'center',
+    },
+    btnDisabled: { backgroundColor: '#d1d5db' },
+    btnPrimaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+    btnSecondary: {
+      flex: 1, backgroundColor: `${Colors.brand}15`, borderRadius: 16,
+      paddingVertical: 16, alignItems: 'center',
+      borderWidth: 1, borderColor: `${Colors.brand}40`,
+    },
+    btnSecondaryText: { color: Colors.brand, fontSize: 15, fontWeight: '700' },
 
+    // ── Stats ──
+    statsRow: { flexDirection: 'row', gap: 10 },
+    statCard: {
+      flex: 1, backgroundColor: C.card, borderRadius: 18, padding: 16,
+      alignItems: 'center', gap: 4,
+      borderWidth: 1, borderColor: C.border,
+    },
+    statCardAction: { borderColor: `${Colors.brand}40` },
+    statValue: { fontSize: 20, fontWeight: '800', color: C.text },
+    statLabel: { fontSize: 11, fontWeight: '600', color: C.textMuted },
+
+    // ── CTA ──
+    btnNuevo: {
+      backgroundColor: Colors.brand, borderRadius: 18,
+      paddingVertical: 18, alignItems: 'center',
+    },
+    btnNuevoText: { color: '#ffffff', fontSize: 17, fontWeight: '800' },
+
+    // ── Últimas jornadas ──
     recentSection: { gap: 10 },
-    recentTitle: { fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 2 },
+    recentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    recentTitle: { fontSize: 16, fontWeight: '700', color: C.text },
+    recentVerTodo: { fontSize: 13, fontWeight: '600', color: Colors.brand },
     recentCard: {
-      backgroundColor: C.card, borderRadius: 18, padding: 16, gap: 10,
-      shadowColor: '#000000', shadowOpacity: 0.05, shadowRadius: 14,
-      shadowOffset: { width: 0, height: 6 }, elevation: 2,
+      backgroundColor: C.card, borderRadius: 16, padding: 14,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 }, elevation: 1,
     },
     recentCardPressed: { opacity: 0.7 },
+    recentCardLeft: { flex: 1, gap: 4, marginRight: 12 },
     tipoTag: {
       flexDirection: 'row', alignItems: 'center', gap: 6,
-      alignSelf: 'flex-start', borderRadius: 8,
-      paddingHorizontal: 8, paddingVertical: 4,
+      alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
     },
-    tipoDot: { width: 7, height: 7, borderRadius: 4 },
+    tipoDot: { width: 6, height: 6, borderRadius: 3 },
     tipoTagText: { fontSize: 11, fontWeight: '700' },
-    recentCardBody: {
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    },
-    recentCardLeft: { flex: 1, marginRight: 12 },
-    recentCardMeta: { fontSize: 13, color: C.textMuted, marginTop: 2 },
-    recentCardDuracion: { fontSize: 16, fontWeight: '800', color: Colors.brand },
+    recentMeta: { fontSize: 12, color: C.textMuted },
+    recentDuracion: { fontSize: 16, fontWeight: '800', color: Colors.brand },
 
     emptyState: {
-      backgroundColor: C.card, borderRadius: 22, padding: 32,
-      alignItems: 'center', borderWidth: 1, borderColor: C.border, gap: 8,
+      backgroundColor: C.card, borderRadius: 20, padding: 28,
+      alignItems: 'center', borderWidth: 1, borderColor: C.border, gap: 6,
     },
-    emptyIcon: { fontSize: 36 },
-    emptyTitle: { fontSize: 17, fontWeight: '700', color: C.text },
-    emptyText: { fontSize: 14, color: C.textMuted, textAlign: 'center', lineHeight: 20 },
+    emptyTitle: { fontSize: 16, fontWeight: '700', color: C.text },
+    emptyText: { fontSize: 13, color: C.textMuted, textAlign: 'center', lineHeight: 19 },
   });
 }
