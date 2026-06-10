@@ -81,7 +81,7 @@ export default function AjustesScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo onFichajeRapido={showToast} />
+        <BrandLogo />
       </View>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Ajustes</Text>

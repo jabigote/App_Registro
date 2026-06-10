@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
-import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { type Registro, useRegistro } from '@/contexts/registro-context';
@@ -10,8 +9,9 @@ import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import {
   type MonthlyDayRecord,
   type WorkdayType,
-  normalizeHours,
-  shareMonthlyReportFromTemplate,
+  generateMonthlyReportFromTemplate,
+  resolveDailyExcelValues,
+  shareReportFile,
 } from '@/src/services/excel/generateMonthlyReportFromTemplate';
 
 const MESES = [
@@ -78,46 +78,23 @@ function fmtH(h: number | undefined): string {
   return mm > 0 ? `${hh}:${String(mm).padStart(2, '0')}` : `${hh}h`;
 }
 
-function getExcelCols(rec: MonthlyDayRecord) {
-  const type    = rec.workdayType;
-  const normalH = normalizeHours(rec.normalHours);
-  const homeH   = normalizeHours(rec.homeRecoveryHours);
-  const extH    = normalizeHours(rec.externalHours);
-  const extra25 = normalizeHours(rec.overtime25);
-
-  let C: number | undefined;
-  let D: number | undefined;
-  let E: number | undefined;
-  let F: number | undefined;
-
-  switch (type) {
-    case 'office':                   E = normalH; break;
-    case 'external':
-    case 'remote':                   F = normalH; break;
-    case 'home_recovery':            D = normalH; break;
-    case 'mixed':                    D = homeH; F = extH; break;
-    case 'vacation_permission_sick': C = normalH; break;
-  }
-
-  const worked = (C ?? 0) + (D ?? 0) + (E ?? 0) + (F ?? 0);
-  const J = worked + (extra25 ?? 0) || undefined;
-
-  return {
-    C, D, E, F, G: extra25, J,
-    M: rec.halfDiet  ? 1 : undefined,
-    N: rec.fullDiet  ? 1 : undefined,
-    O: rec.overnight ? 1 : undefined,
-    P: [rec.clientName, rec.notes].filter(Boolean).join(' · ') || undefined,
-  };
+/** Rechaza si la generación tarda más de `ms`: evita un "Generando…" infinito sin feedback. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Generación cancelada tras ${ms / 1000}s`)), ms),
+    ),
+  ]);
 }
 
 export default function RegistroMensualScreen() {
   const { registros } = useRegistro();
   const { usuario } = useAuth();
-  const { toast, showToast, dismissToast } = useToast();
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [exporting, setExporting] = useState(false);
+  const [pendingShareUri, setPendingShareUri] = useState<string | null>(null);
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -223,25 +200,42 @@ export default function RegistroMensualScreen() {
       };
     });
 
+  // Genera el archivo con el modal aún abierto (botón en "Generando…") y lo cierra al
+  // terminar. El share sheet NO se presenta aquí: si se lanza mientras el pageSheet
+  // todavía se está cerrando, iOS no puede presentarlo y la promesa queda colgada.
   const handleExportar = async () => {
     if (exporting) return;
     setExporting(true);
-    setShowPreview(false);
-    // Espera a que termine la animación de cierre del modal antes de presentar el share sheet
-    await new Promise<void>((r) => setTimeout(r, 400));
     try {
-      await shareMonthlyReportFromTemplate({
-        year,
-        month:        month + 1,
-        employeeName: usuario?.nombre ?? 'Empleado',
-        records:      buildRecords(),
-      });
+      const uri = await withTimeout(
+        generateMonthlyReportFromTemplate({
+          year,
+          month:        month + 1,
+          employeeName: usuario?.nombre ?? 'Empleado',
+          records:      buildRecords(),
+        }),
+        60000,
+      );
+      setPendingShareUri(uri);
+      setShowPreview(false); // el share sheet se lanza en onDismiss del modal
     } catch (e) {
       Alert.alert('Error', 'No se pudo generar el reporte. Inténtalo de nuevo.');
       console.warn('Error generando Excel:', e);
     } finally {
       setExporting(false);
     }
+  };
+
+  // onDismiss se dispara cuando iOS ha terminado de verdad la animación de cierre:
+  // es el momento seguro para presentar el share sheet.
+  const handlePreviewDismiss = () => {
+    if (!pendingShareUri) return;
+    const uri = pendingShareUri;
+    setPendingShareUri(null);
+    shareReportFile(uri, month + 1, year).catch((e) => {
+      Alert.alert('Error', 'No se pudo abrir el menú de compartir.');
+      console.warn('Error compartiendo Excel:', e);
+    });
   };
 
   const handleVerPrevia = () => {
@@ -255,7 +249,7 @@ export default function RegistroMensualScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo onFichajeRapido={showToast} />
+        <BrandLogo />
       </View>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Registro mensual</Text>
@@ -456,14 +450,8 @@ export default function RegistroMensualScreen() {
           onPress={handleVerPrevia}
           disabled={exporting}
         >
-          <Text style={styles.exportBtnText}>
-            {exporting ? 'Generando…' : 'Ver previa / Exportar Excel'}
-          </Text>
+          <Text style={styles.exportBtnText}>Exportar Excel</Text>
         </Pressable>
-
-        <Text style={styles.exportHint}>
-          Se abrirá el menú de compartir de iOS para enviar por correo, guardar en Archivos o cualquier otra opción.
-        </Text>
       </ScrollView>
 
       {/* ── Modal de vista previa (columnas de la plantilla Excel) ── */}
@@ -472,6 +460,7 @@ export default function RegistroMensualScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setShowPreview(false)}
+        onDismiss={handlePreviewDismiss}
       >
         <SafeAreaView style={styles.pvSafe}>
           {/* Cabecera */}
@@ -511,7 +500,7 @@ export default function RegistroMensualScreen() {
                   .slice()
                   .sort((a, b) => a.day - b.day)
                   .map((rec) => {
-                    const cols = getExcelCols(rec);
+                    const cols = resolveDailyExcelValues(rec);
                     return (
                       <View key={rec.day} style={styles.pvRow}>
                         <Text style={[styles.pvCell, styles.pvWB, styles.pvDayTxt]}>
@@ -560,8 +549,6 @@ export default function RegistroMensualScreen() {
           </View>
         </SafeAreaView>
       </Modal>
-
-      <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
   );
 }
@@ -672,7 +659,6 @@ function makeStyles(C: ThemeColors) {
     },
     exportBtnDisabled: { backgroundColor: '#9ca3af' },
     exportBtnText:     { color: '#ffffff', fontSize: 16, fontWeight: '700' },
-    exportHint:        { fontSize: 12, color: C.textFaint, textAlign: 'center', lineHeight: 18 },
 
     // ── Vista previa modal ──
     pvSafe: { flex: 1, backgroundColor: C.background },

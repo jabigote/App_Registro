@@ -110,7 +110,7 @@ export default function NuevoRegistroScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo onFichajeRapido={showToast} />
+        <BrandLogo />
       </View>
       <ScrollView
         contentContainerStyle={styles.page}

@@ -1,28 +1,19 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
-import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
-import { todayDateStr } from '@/utils/date';
-import { roundToNearest30 } from '@/utils/time';
 
 const brandMark = require('../assets/images/salvagnini-mark.png');
 const brandLogo = require('../assets/images/salvagnini-logo.webp');
 
-interface BrandLogoProps {
-  onFichajeRapido?: (message: string) => void;
-}
-
-export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
+export function BrandLogo() {
   const router = useRouter();
-  const { quickEntry, saveQuickEntry } = useRegistro();
   const [menuVisible, setMenuVisible] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
   const [markFailed, setMarkFailed] = useState(false);
-  const [notaEntrada, setNotaEntrada] = useState('');
   const menuAnim = useRef(new Animated.Value(0)).current;
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -45,66 +36,38 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
     router.push(path);
   };
 
-  const handleEntrada = async () => {
-    closeMenu();
-    const hora = roundToNearest30(new Date());
-    await saveQuickEntry({ fecha: todayDateStr(), inicio: hora, notas: notaEntrada.trim() || undefined });
-    setNotaEntrada('');
-    onFichajeRapido?.(`Entrada registrada: ${hora}`);
-  };
-
-  const handleSalida = () => {
-    if (!quickEntry) return;
-    closeMenu();
-    const hora = roundToNearest30(new Date());
-    router.push({
-      pathname: '/nuevo',
-      params: {
-        fechaPreset:  quickEntry.fecha,
-        inicioPreset: quickEntry.inicio,
-        finPreset:    hora,
-      },
-    });
-  };
-
-  const handleCancelarEntrada = async () => {
-    closeMenu();
-    await saveQuickEntry(null);
-    onFichajeRapido?.('Entrada cancelada');
-  };
-
   return (
     <View style={styles.container}>
-      {/* Icono S — botón de menú */}
-      <Pressable style={styles.iconButton} onPress={toggleMenu}>
-        {!markFailed ? (
-          <Image
-            source={brandMark}
-            style={styles.icon}
-            contentFit="contain"
-            onError={() => setMarkFailed(true)}
-          />
-        ) : (
-          <Text style={styles.iconFallback}>S</Text>
-        )}
-      </Pressable>
+      {/* Logo SALVAGNINI a toda la anchura. El webp original (1280×720) tiene el wordmark
+          en una banda central: cover recorta el blanco vertical y lo muestra grande. */}
+      {!logoFailed ? (
+        <Image
+          source={brandLogo}
+          style={styles.logoImage}
+          contentFit="cover"
+          onError={() => setLogoFailed(true)}
+        />
+      ) : (
+        <Text style={styles.brandName}>SALVAGNINI</Text>
+      )}
 
-      {/* Logo + subtítulo */}
-      <View style={styles.textGroup}>
-        {!logoFailed ? (
-          <Image
-            source={brandLogo}
-            style={styles.logoImage}
-            contentFit="contain"
-            onError={() => setLogoFailed(true)}
-          />
-        ) : (
-          <Text style={styles.brandName}>SALVAGNINI</Text>
-        )}
-        <Text style={styles.brandTag}>Registro de jornada laboral</Text>
+      {/* Fila inferior: icono S como botón de menú */}
+      <View style={styles.navRow}>
+        <Pressable style={styles.iconButton} onPress={toggleMenu}>
+          {!markFailed ? (
+            <Image
+              source={brandMark}
+              style={styles.icon}
+              contentFit="contain"
+              onError={() => setMarkFailed(true)}
+            />
+          ) : (
+            <Text style={styles.iconFallback}>S</Text>
+          )}
+        </Pressable>
       </View>
 
-      {/* Menú desplegable animado */}
+      {/* Menú desplegable: solo navegación */}
       {menuVisible && (
         <Animated.View
           style={[
@@ -128,9 +91,11 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
             },
           ]}
         >
-          {/* Navegación */}
           <Pressable style={styles.menuItem} onPress={() => handleNavigate('/')}>
             <Text style={styles.menuItemText}>Inicio</Text>
+          </Pressable>
+          <Pressable style={styles.menuItem} onPress={() => handleNavigate('/nuevo')}>
+            <Text style={styles.menuItemText}>Nueva jornada</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={() => handleNavigate('/registros')}>
             <Text style={styles.menuItemText}>Registros</Text>
@@ -141,37 +106,6 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
           <Pressable style={styles.menuItem} onPress={() => handleNavigate('/ajustes')}>
             <Text style={styles.menuItemText}>Ajustes</Text>
           </Pressable>
-
-          {/* Separador */}
-          <View style={styles.menuDivider} />
-
-          {/* Fichaje rápido */}
-          {quickEntry ? (
-            <>
-              <Pressable style={styles.menuItem} onPress={handleCancelarEntrada}>
-                <Text style={styles.menuItemFichaje}>Entrada: {quickEntry.inicio}</Text>
-                <Text style={styles.menuItemFichajeHint}>Toca para cancelar</Text>
-              </Pressable>
-              <Pressable style={styles.menuItem} onPress={handleSalida}>
-                <Text style={[styles.menuItemFichaje, { color: Colors.brand }]}>Registrar salida →</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <TextInput
-                style={styles.notaInput}
-                placeholder="Nota de entrada (opcional)"
-                placeholderTextColor={C.textFaint}
-                value={notaEntrada}
-                onChangeText={setNotaEntrada}
-                returnKeyType="done"
-                maxLength={80}
-              />
-              <Pressable style={styles.menuItem} onPress={handleEntrada}>
-                <Text style={[styles.menuItemFichaje, { color: Colors.brand }]}>Registrar entrada</Text>
-              </Pressable>
-            </>
-          )}
         </Animated.View>
       )}
     </View>
@@ -180,22 +114,21 @@ export function BrandLogo({ onFichajeRapido }: BrandLogoProps) {
 
 function makeStyles(C: ThemeColors) {
   return StyleSheet.create({
-    container: { flexDirection: 'row', alignItems: 'center', gap: 14, position: 'relative' },
+    container: { gap: 10, position: 'relative' },
+    logoImage: { width: '100%', height: 64, borderRadius: 12 },
+    brandName: { fontSize: 44, fontWeight: '900', color: Colors.brand, letterSpacing: 1, textAlign: 'center' },
+    navRow: { flexDirection: 'row', alignItems: 'center' },
     iconButton: {
-      width: 56, height: 56, borderRadius: 18,
+      width: 48, height: 48, borderRadius: 15,
       backgroundColor: Colors.brand,
       justifyContent: 'center', alignItems: 'center',
       shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 10,
       shadowOffset: { width: 0, height: 6 }, elevation: 4,
     },
-    icon: { width: 30, height: 30 },
-    iconFallback: { fontSize: 22, fontWeight: '900', color: '#ffffff' },
-    textGroup: { flex: 1, gap: 4 },
-    logoImage: { width: '100%', height: 160 },
-    brandName: { fontSize: 72, fontWeight: '900', color: C.text, letterSpacing: 1 },
-    brandTag: { fontSize: 12, color: C.textMuted, letterSpacing: 0.4 },
+    icon: { width: 26, height: 26 },
+    iconFallback: { fontSize: 20, fontWeight: '900', color: '#ffffff' },
     menu: {
-      position: 'absolute', top: 190, left: 0, zIndex: 10, width: 210,
+      position: 'absolute', top: '100%', left: 0, zIndex: 10, width: 210, marginTop: 6,
       backgroundColor: C.card, borderRadius: 18,
       paddingVertical: 10, paddingHorizontal: 14,
       shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 18,
@@ -203,14 +136,5 @@ function makeStyles(C: ThemeColors) {
     },
     menuItem: { paddingVertical: 13 },
     menuItemText: { fontSize: 15, color: C.text, fontWeight: '700' },
-    menuDivider: { height: 1, backgroundColor: C.border, marginVertical: 4, marginHorizontal: -4 },
-    menuItemFichaje: { fontSize: 14, fontWeight: '700', color: C.text },
-    menuItemFichajeHint: { fontSize: 11, color: C.textFaint, marginTop: 2 },
-    notaInput: {
-      backgroundColor: C.background, borderRadius: 10,
-      borderWidth: 1, borderColor: C.border,
-      paddingHorizontal: 10, paddingVertical: 8,
-      fontSize: 13, color: C.text, marginBottom: 4,
-    },
   });
 }

@@ -93,11 +93,10 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <BrandLogo onFichajeRapido={showToast} />
+        <BrandLogo />
       </View>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Panel de control</Text>
-        <Text style={styles.pageSubtitle}>Gestión de tus jornadas de trabajo en Salvagnini.</Text>
 
         {/* ── Fichaje rápido ── */}
         <View style={styles.fichajeCard}>
@@ -162,11 +161,7 @@ export default function HomeScreen() {
             <Text style={styles.stateNote}>
               {`${latest.titulo} · ${latest.inicio ? `${latest.inicio}–${latest.fin} · ` : ''}${latest.duracion}`}
             </Text>
-          ) : (
-            <Text style={styles.stateNote}>
-              Comienza a guardar tus jornadas de trabajo para tener un histórico personal.
-            </Text>
-          )}
+          ) : null}
         </View>
 
         <View style={styles.actions}>
@@ -241,7 +236,6 @@ function makeStyles(C: ThemeColors) {
     },
     page: { padding: 24, paddingTop: 16, gap: 20, paddingBottom: 40 },
     title: { fontSize: 32, fontWeight: '800', color: C.text, marginBottom: 4 },
-    pageSubtitle: { fontSize: 15, color: C.textSecondary, lineHeight: 22, marginBottom: 12 },
 
     fichajeCard: {
       backgroundColor: C.card, borderRadius: 24, padding: 20, gap: 12,

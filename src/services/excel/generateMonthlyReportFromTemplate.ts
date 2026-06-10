@@ -76,7 +76,12 @@ const MESES_ES = [
 
 /** Columnas de datos que se escriben en cada fila de día (C–P). B y fila 45 nunca se tocan. */
 const TARGET_COLS = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'] as const;
-type TargetCol = (typeof TARGET_COLS)[number];
+export type TargetCol = (typeof TARGET_COLS)[number];
+
+/** Valores resueltos de una fila de día: C–O numéricos (horas / contadores), P texto. */
+export type DailyExcelValues = Record<Exclude<TargetCol, 'P'>, number | undefined> & {
+  P: string | undefined;
+};
 
 /**
  * Columnas C–I: el template usa formatos de número decimal (ej. "0.00", "#,##0.0").
@@ -175,8 +180,9 @@ function buildActivityNote(record: MonthlyDayRecord): string | undefined {
  * Los valores de C–J son horas decimales (la conversión /24 ocurre al escribir XML).
  * Los valores de K–O son numéricos directos.
  * El valor de P es texto o undefined.
+ * Exportada para que la vista previa de la app muestre exactamente lo que irá al Excel.
  */
-function resolveDailyExcelValues(record: MonthlyDayRecord): Record<TargetCol, number | string | undefined> {
+export function resolveDailyExcelValues(record: MonthlyDayRecord): DailyExcelValues {
   const { workdayType } = record;
 
   const normalH   = normalizeHours(record.normalHours);
@@ -242,7 +248,7 @@ function resolveDailyExcelValues(record: MonthlyDayRecord): Record<TargetCol, nu
     }
   }
 
-  const result = {
+  return {
     C,
     D,
     E,
@@ -257,9 +263,7 @@ function resolveDailyExcelValues(record: MonthlyDayRecord): Record<TargetCol, nu
     N: record.fullDiet,
     O: record.overnight,
     P: buildActivityNote(record),
-  } as Record<TargetCol, number | string | undefined>;
-
-  return result;
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -608,14 +612,12 @@ export async function generateMonthlyReportFromTemplate(
   // 8. El ZIP final sale de JSZip, conservando todos los archivos originales
   zip.file(sheetPath, sheetXml);
 
-  // DEFLATE level 1 (mínima compresión, máxima velocidad): JSZip puede pasar directamente
-  // los bytes ya comprimidos de los entries no modificados (imágenes, estilos…) sin
-  // recomprimirlos. Con STORE, en cambio, JSZip tendría que descomprimir cada entry
-  // DEFLATE del template original antes de almacenarlo — eso sí bloquea Hermes 30-60 s.
+  // STORE (sin compresión): comprimir con DEFLATE bloquea el único hilo JS de Hermes
+  // durante decenas de segundos y la app parece congelada. Descomprimir (inflate) los
+  // entries del template es rápido; Excel/Numbers abren xlsx sin comprimir sin problema.
   const outputBase64 = await zip.generateAsync({
-    type:               'base64',
-    compression:        'DEFLATE',
-    compressionOptions: { level: 1 },
+    type:        'base64',
+    compression: 'STORE',
   });
 
   // 8. Guardar en documentDirectory
@@ -632,17 +634,18 @@ export async function generateMonthlyReportFromTemplate(
 // Helper de compartir
 // ─────────────────────────────────────────────
 
-export async function shareMonthlyReportFromTemplate(
-  input: MonthlyReportInput,
-): Promise<void> {
-  const uri = await generateMonthlyReportFromTemplate(input);
-
+/**
+ * Comparte un reporte ya generado. Separado de la generación para que la pantalla
+ * pueda cerrar su modal ANTES de presentar el share sheet de iOS (presentarlo
+ * mientras un pageSheet aún se está cerrando deja la promesa colgada).
+ */
+export async function shareReportFile(uri: string, month: number, year: number): Promise<void> {
   const available = await Sharing.isAvailableAsync();
   if (!available) throw new Error('La opción de compartir no está disponible.');
 
   await Sharing.shareAsync(uri, {
     mimeType:    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     UTI:         'com.microsoft.excel.xlsx',
-    dialogTitle: `Reporte ${MESES_ES[input.month - 1]} ${input.year}`,
+    dialogTitle: `Reporte ${MESES_ES[month - 1]} ${year}`,
   });
 }
