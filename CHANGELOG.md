@@ -6,6 +6,13 @@ La versión debe actualizarse conjuntamente en `app.json`, `package.json` y
 `constants/release-history.ts`. La prueba `version-history.test.ts` comprueba que las tres fuentes
 permanezcan sincronizadas.
 
+## 1.2.0 — 12 de junio de 2026
+
+- Añadidas plantillas rápidas, ausencias, festivos, objetivo y cierre mensual.
+- Corregidas las mutaciones concurrentes, la recuperación de almacenamiento y las horas extra mixtas.
+- Añadidos recordatorios configurables, soporte de fichajes nocturnos y previsualización de backups.
+- Ampliada la cobertura automatizada y retirado código residual del template Expo.
+
 ## 1.1.0 — 10 de junio de 2026
 
 ### Integridad y almacenamiento
@@ -56,4 +63,3 @@ permanezcan sincronizadas.
 - Exportación y vista previa de la plantilla Excel corporativa.
 - Backup y restauración JSON.
 - Notificaciones, modo oscuro, animaciones y respuesta háptica.
-

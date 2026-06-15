@@ -3,6 +3,7 @@ import { createContext, type ReactNode, useContext, useEffect, useRef, useState 
 import { isRegistro, mergeUniqueRegistros, type QuickEntry, type Registro } from '@/src/domain/registro';
 import { loadRegistroData, saveQuickEntryValue, saveRegistros } from '@/src/repositories/registro-repository';
 import { cancelFichajeReminder, scheduleFichajeReminder } from '@/utils/notifications';
+import { useAppSettings } from '@/contexts/app-settings-context';
 
 export type { Dieta, QuickEntry, Registro } from '@/src/domain/registro';
 
@@ -25,6 +26,7 @@ type RegistroContextValue = {
 const RegistroContext = createContext<RegistroContextValue | undefined>(undefined);
 
 export function RegistroProvider({ children }: { children: ReactNode }) {
+  const { lockedMonths } = useAppSettings();
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(true);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
@@ -44,9 +46,10 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
         registrosRef.current = data.registros;
         setRegistros(data.registros);
         setQuickEntryState(data.quickEntry);
-        if (data.discardedRecords > 0) {
-          setStorageWarning(`Se ignoraron ${data.discardedRecords} registros dañados.`);
-        }
+        const warnings = [];
+        if (data.discardedRecords > 0) warnings.push(`Se ignoraron ${data.discardedRecords} registros dañados.`);
+        if (data.damagedStorage.length > 0) warnings.push(`Se recuperó almacenamiento dañado: ${data.damagedStorage.join(', ')}.`);
+        setStorageWarning(warnings.join(' ') || null);
       })
       .catch((error) => {
         console.warn('Error cargando datos', error);
@@ -59,7 +62,8 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
     const previous = quickEntry;
     const previousNotificationId = previous?.notificationId;
     const shouldCancel = !!previousNotificationId && (
-      !entry || entry.fin !== undefined || entry.inicio !== previous?.inicio || entry.fecha !== previous?.fecha
+      !entry || entry.fin !== undefined || entry.inicio !== previous?.inicio || entry.fecha !== previous?.fecha ||
+      entry.notificationId !== previousNotificationId
     );
     if (shouldCancel && previousNotificationId) await cancelFichajeReminder(previousNotificationId);
 
@@ -72,14 +76,21 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
     setQuickEntryState(finalEntry);
   };
 
-  const replaceRegistros = async (next: Registro[]) => {
-    const valid = next.filter(isRegistro);
+  const commitRegistros = async (buildNext: (current: Registro[]) => Registro[]) => {
     await queueMutation(async () => {
+      const valid = buildNext(registrosRef.current).filter(isRegistro);
       await saveRegistros(valid);
       registrosRef.current = valid;
       setRegistros(valid);
     });
   };
+
+  const assertUnlocked = (registro: Pick<Registro, 'fecha' | 'createdAt'>) => {
+    const monthKey = (registro.fecha ?? registro.createdAt.slice(0, 10)).slice(0, 7);
+    if (lockedMonths.includes(monthKey)) throw new Error(`El mes ${monthKey} está cerrado.`);
+  };
+
+  const replaceRegistros = async (next: Registro[]) => commitRegistros(() => next);
 
   const addRegistro = async (registro: NewRegistro) => {
     const newRegistro: Registro = {
@@ -87,21 +98,35 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
       id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
       createdAt: new Date().toISOString(),
     };
-    await replaceRegistros([newRegistro, ...registrosRef.current]);
+    assertUnlocked(newRegistro);
+    await commitRegistros((current) => [newRegistro, ...current]);
   };
 
   const updateRegistro = async (id: string, data: Partial<NewRegistro>) => {
-    await replaceRegistros(registrosRef.current.map((r) => (r.id === id ? { ...r, ...data } : r)));
+    await commitRegistros((current) => current.map((r) => {
+      if (r.id !== id) return r;
+      const updated = { ...r, ...data };
+      assertUnlocked(r);
+      assertUnlocked(updated);
+      return updated;
+    }));
   };
 
   const deleteRegistro = async (id: string) => {
-    await replaceRegistros(registrosRef.current.filter((r) => r.id !== id));
+    await commitRegistros((current) => current.filter((r) => {
+      if (r.id !== id) return true;
+      assertUnlocked(r);
+      return false;
+    }));
   };
 
   const mergeRegistros = async (incoming: Registro[]) => {
-    const merged = mergeUniqueRegistros(registrosRef.current, incoming);
-    const additions = merged.length - registrosRef.current.length;
-    if (additions > 0) await replaceRegistros(merged);
+    let additions = 0;
+    await commitRegistros((current) => {
+      const merged = mergeUniqueRegistros(current, incoming);
+      additions = merged.length - current.length;
+      return merged;
+    });
     return additions;
   };
 

@@ -7,17 +7,26 @@ import { BrandLogo } from '@/components/brand-logo';
 import { ClienteSearchInput } from '@/components/cliente-search-input';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
+import { useAppSettings } from '@/contexts/app-settings-context';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import { DIETA_OPTS, TIPOS_JORNADA, needsCliente, useJornadaForm } from '@/hooks/useJornadaForm';
 import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
 import { parseHoursInput } from '@/utils/time';
+import type { JornadaTemplate } from '@/src/domain/app-settings';
 
 export default function NuevoRegistroScreen() {
   const router = useRouter();
-  const { inicioPreset, finPreset, fechaPreset, descripcionPreset } =
-    useLocalSearchParams<{ inicioPreset?: string; finPreset?: string; fechaPreset?: string; descripcionPreset?: string }>();
+  const { inicioPreset, finPreset, finFechaPreset, fechaPreset, descripcionPreset } =
+    useLocalSearchParams<{
+      inicioPreset?: string;
+      finPreset?: string;
+      finFechaPreset?: string;
+      fechaPreset?: string;
+      descripcionPreset?: string;
+    }>();
   const { addRegistro, saveQuickEntry } = useRegistro();
+  const { templates, addTemplate } = useAppSettings();
   const { toast, showToast, dismissToast } = useToast();
   const [saving, setSaving] = useState(false);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,8 +66,41 @@ export default function NuevoRegistroScreen() {
     initialInicio2:     inicioPreset ? '' : '14:00',
     initialFin2:        inicioPreset ? '' : '17:00',
     initialDescripcion: descripcionPreset ?? '',
-    resetOnTipoChange:  true,
+    allowNextDay: Boolean(fechaPreset && finFechaPreset && finFechaPreset > fechaPreset),
   });
+
+  const applyTemplate = (template: JornadaTemplate) => {
+    setTipoJornada(template.tipo);
+    setNombreCliente(template.cliente ?? '');
+    setInicio1(template.inicio1 ?? '08:00');
+    setFin1(template.fin1 ?? '13:00');
+    setInicio2(template.inicio2 ?? '');
+    setFin2(template.fin2 ?? '');
+    setHomeRecoveryInput(template.homeRecoveryHours ?? '');
+    setExternalHoursInput(template.externalHours ?? '');
+    setDieta(template.dieta ?? 'ninguna');
+    setPernocta(template.pernocta ?? false);
+    showToast(`Plantilla aplicada: ${template.name}`);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!tipoJornada) return;
+    await addTemplate({
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+      name: nombreCliente.trim() ? `${tipoJornada} · ${nombreCliente.trim()}` : `${tipoJornada} personalizado`,
+      tipo: tipoJornada as JornadaTemplate['tipo'],
+      cliente: nombreCliente.trim() || undefined,
+      inicio1,
+      fin1,
+      inicio2: inicio2 || undefined,
+      fin2: fin2 || undefined,
+      homeRecoveryHours: homeRecoveryInput || undefined,
+      externalHours: externalHoursInput || undefined,
+      dieta,
+      pernocta,
+    });
+    showToast('Plantilla guardada');
+  };
 
   const handleGuardar = async () => {
     if (!canSave || !effectiveDuration || saving) return;
@@ -72,6 +114,7 @@ export default function NuevoRegistroScreen() {
           fecha,
           inicio:   '',
           fin:      '',
+          finFecha: undefined,
           duracion: effectiveDuration,
           homeRecoveryHours: homeRecoveryInput.trim() || undefined,
           externalHours:     externalHoursInput.trim() || undefined,
@@ -90,6 +133,7 @@ export default function NuevoRegistroScreen() {
           fin1:     fin1,
           inicio2:  has2 ? inicio2 : undefined,
           fin:      has2 ? fin2 : fin1,
+          finFecha: finFechaPreset && finFechaPreset > fecha ? finFechaPreset : undefined,
           duracion: effectiveDuration,
           dieta,
           pernocta,
@@ -117,6 +161,18 @@ export default function NuevoRegistroScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {templates.length > 0 ? (
+          <View style={styles.fieldset}>
+            <Text style={styles.fieldLabel}>Plantillas rápidas</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tipoChipRow}>
+              {templates.map((template) => (
+                <Pressable key={template.id} style={styles.templateChip} onPress={() => applyTemplate(template)}>
+                  <Text style={styles.templateChipText}>{template.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         {/* Fecha */}
         <View style={styles.fieldset}>
@@ -337,6 +393,11 @@ export default function NuevoRegistroScreen() {
         >
           <Text style={styles.buttonPrimaryText}>{saving ? 'Guardando…' : 'Guardar'}</Text>
         </Pressable>
+        {tipoJornada ? (
+          <Pressable style={styles.buttonSecondary} onPress={handleSaveTemplate}>
+            <Text style={styles.buttonSecondaryText}>Guardar como plantilla</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
       <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
@@ -396,6 +457,11 @@ function makeStyles(C: ThemeColors) {
     tipoChipActive: { backgroundColor: Colors.brand, borderColor: Colors.brand },
     tipoChipText: { fontSize: 14, fontWeight: '700', color: C.textSecondary },
     tipoChipTextActive: { color: '#ffffff' },
+    templateChip: {
+      paddingVertical: 10, paddingHorizontal: 16, borderRadius: 16,
+      backgroundColor: C.subtleBg, borderWidth: 1, borderColor: C.border,
+    },
+    templateChipText: { color: C.text, fontSize: 13, fontWeight: '700' },
     inputError: { borderColor: '#f59e0b', borderWidth: 1.5 },
     fieldError: { fontSize: 12, color: '#f59e0b', fontWeight: '600', marginTop: -4 },
     chipRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
@@ -412,5 +478,10 @@ function makeStyles(C: ThemeColors) {
     },
     buttonDisabled: { backgroundColor: '#d1d5db' },
     buttonPrimaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+    buttonSecondary: {
+      marginTop: 10, borderRadius: 16, paddingVertical: 14, alignItems: 'center',
+      borderWidth: 1, borderColor: Colors.brand,
+    },
+    buttonSecondaryText: { color: Colors.brand, fontSize: 15, fontWeight: '700' },
   });
 }

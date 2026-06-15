@@ -64,7 +64,6 @@ export default function RegistroDetalleScreen() {
     initialPernocta:      registro?.pernocta ?? false,
     initialHorasExtras:   String(registro?.horasExtras ?? 0),
     initialDescripcion:   registro?.descripcion ?? '',
-    skipFirstExtrasSync:  true,
   });
 
   // Definida aquí como closure para acceder a los styles dinámicos
@@ -248,6 +247,9 @@ export default function RegistroDetalleScreen() {
               ) : registro.inicio ? (
                 <Row label="Horario" value={`${registro.inicio} — ${registro.fin}`} />
               ) : null}
+              {registro.finFecha && registro.finFecha !== registroFecha
+                ? <Row label="Finaliza" value={formatFecha(registro.finFecha)} />
+                : null}
               <Row label="Duración" value={registro.duracion} />
               <Row label="Dieta" value={dietaLabel} />
               <Row label="Pernocta" value={registro.pernocta ? 'Sí' : 'No'} />

@@ -7,6 +7,23 @@ export type ReleaseEntry = {
 
 export const RELEASE_HISTORY: ReleaseEntry[] = [
   {
+    version: '1.2.0',
+    date: '12 de junio de 2026',
+    title: 'Planificación, cierre mensual e integridad reforzada',
+    highlights: [
+      'Se añadieron plantillas rápidas de jornada reutilizables y gestionables desde Ajustes.',
+      'Se incorporaron vacaciones, permisos, enfermedad y festivos con exportación Excel compatible.',
+      'El resumen mensual muestra objetivo, balance y permite cerrar meses para evitar cambios accidentales.',
+      'Los recordatorios de cierre permiten configurar la duración y cancelan avisos pendientes al desactivarse.',
+      'El fichaje rápido soporta jornadas que terminan al día siguiente.',
+      'Las mutaciones locales ahora son atómicas y evitan pérdidas ante operaciones simultáneas.',
+      'La carga local se recupera de bloques JSON dañados sin ocultar los registros válidos.',
+      'Se corrigió el cómputo de horas extra en jornadas mixtas y se endureció la validación de backups.',
+      'La importación de backups muestra periodo y tipos antes de fusionar o reemplazar.',
+      'Se añadió cierre de sesión visible, más pruebas automatizadas y se retiró código residual.',
+    ],
+  },
+  {
     version: '1.1.0',
     date: '10 de junio de 2026',
     title: 'Integridad, validación y experiencia de uso',
@@ -43,4 +60,3 @@ export const RELEASE_HISTORY: ReleaseEntry[] = [
 ];
 
 export const CURRENT_APP_VERSION = RELEASE_HISTORY[0].version;
-

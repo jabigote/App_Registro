@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { type Dieta } from '@/contexts/registro-context';
 import { calculateScheduleMinutes, fmtDuration, parseHoursInput } from '@/utils/time';
@@ -9,6 +9,10 @@ export const TIPOS_JORNADA = [
   { value: 'Teletrabajo', label: 'Teletrabajo' },
   { value: 'Mixto',       label: 'Mixto (casa + cliente)' },
   { value: 'Casa',        label: 'Casa (recuperación de horas)' },
+  { value: 'Vacaciones',  label: 'Vacaciones' },
+  { value: 'Permiso',     label: 'Permiso' },
+  { value: 'Enfermedad',  label: 'Enfermedad' },
+  { value: 'Festivo',     label: 'Festivo' },
 ];
 
 export const DIETA_OPTS: { value: Dieta; label: string }[] = [
@@ -40,10 +44,8 @@ export type JornadaFormOptions = {
   initialPernocta?: boolean;
   initialHorasExtras?: string;
   initialDescripcion?: string;
-  /** Modo edición: no sobreescribir las horas extras guardadas en el primer render */
-  skipFirstExtrasSync?: boolean;
-  /** Modo creación: resetear campos de cliente/horas al cambiar tipo de jornada */
-  resetOnTipoChange?: boolean;
+  /** Permite que el primer tramo termine durante el día siguiente. */
+  allowNextDay?: boolean;
 };
 
 export function useJornadaForm(options: JornadaFormOptions = {}) {
@@ -65,12 +67,12 @@ export function useJornadaForm(options: JornadaFormOptions = {}) {
 
   const { duracion, scheduleError } = useMemo(() => {
     if (isMixed) return { duracion: null, scheduleError: null };
-    const result = calculateScheduleMinutes(inicio1, fin1, inicio2, fin2);
+    const result = calculateScheduleMinutes(inicio1, fin1, inicio2, fin2, options.allowNextDay ?? false);
     return {
       duracion: result.minutes === null ? null : fmtDuration(result.minutes),
       scheduleError: result.error,
     };
-  }, [isMixed, inicio1, fin1, inicio2, fin2]);
+  }, [isMixed, inicio1, fin1, inicio2, fin2, options.allowNextDay]);
 
   const { mixedDuration, mixedError } = useMemo(() => {
     if (!isMixed) return { mixedDuration: null, mixedError: null };
@@ -88,15 +90,6 @@ export function useJornadaForm(options: JornadaFormOptions = {}) {
       mixedError: total > 0 ? null : 'Introduce al menos un tramo de horas.',
     };
   }, [isMixed, homeRecoveryInput, externalHoursInput]);
-
-  const resetOnChangeRef = useRef(options.resetOnTipoChange ?? false);
-
-  useEffect(() => {
-    if (!resetOnChangeRef.current) return;
-    setNombreCliente('');
-    setHomeRecoveryInput('');
-    setExternalHoursInput('');
-  }, [tipoJornada]);
 
   const effectiveDuration = isMixed ? mixedDuration : duracion;
   const extrasError =

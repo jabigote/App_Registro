@@ -13,6 +13,7 @@ import {
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
+import { useAppSettings } from '@/contexts/app-settings-context';
 import { useAuth } from '@/contexts/auth-context';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemePreference, useThemePreference } from '@/contexts/theme-context';
@@ -56,8 +57,15 @@ function Section({
 }
 
 export default function AjustesScreen() {
-  const { registros, mergeRegistros, replaceRegistros, clearRegistros, storageWarning } = useRegistro();
-  const { usuario, updateProfile } = useAuth();
+  const {
+    registros, mergeRegistros, replaceRegistros, clearRegistros, storageWarning,
+    quickEntry, saveQuickEntry,
+  } = useRegistro();
+  const { usuario, updateProfile, logout } = useAuth();
+  const {
+    reminderHours, setReminderHours, monthlyTargetHours, setMonthlyTargetHours,
+    templates, deleteTemplate,
+  } = useAppSettings();
   const { preference, setPreference } = useThemePreference();
   const router = useRouter();
   const { toast, showToast, dismissToast } = useToast();
@@ -69,6 +77,7 @@ export default function AjustesScreen() {
   const [nombre, setNombre] = useState(usuario?.nombre ?? '');
   const [email, setEmail] = useState(usuario?.email ?? '');
   const [notifCierre, setNotifCierre] = useState(true);
+  const [targetHoursInput, setTargetHoursInput] = useState(String(monthlyTargetHours));
   const [open, setOpen] = useState<Record<string, boolean>>({
     cuenta: true,   // CUENTA abierto por defecto
     pantalla: false,
@@ -83,6 +92,10 @@ export default function AjustesScreen() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    setTargetHoursInput(String(monthlyTargetHours));
+  }, [monthlyTargetHours]);
+
   const toggle = (key: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -90,7 +103,27 @@ export default function AjustesScreen() {
 
   const toggleNotifCierre = async (val: boolean) => {
     setNotifCierre(val);
-    await AsyncStorage.setItem(NOTIFICATION_REMINDER_KEY, String(val)).catch(() => {});
+    await AsyncStorage.setItem(NOTIFICATION_REMINDER_KEY, String(val));
+    if (quickEntry && !quickEntry.fin) {
+      await saveQuickEntry({ ...quickEntry, notificationId: undefined });
+    }
+  };
+
+  const handleReminderHours = async (hours: number) => {
+    await setReminderHours(hours);
+    if (quickEntry && !quickEntry.fin && notifCierre) {
+      await saveQuickEntry({ ...quickEntry, notificationId: undefined });
+    }
+  };
+
+  const handleTargetHours = async () => {
+    const hours = Number(targetHoursInput.replace(',', '.'));
+    if (!Number.isFinite(hours) || hours <= 0) {
+      showToast('Introduce un objetivo mensual válido.', 'error');
+      return;
+    }
+    await setMonthlyTargetHours(hours);
+    showToast('Objetivo mensual actualizado.');
   };
 
   const handleExportBackup = async () => {
@@ -98,7 +131,7 @@ export default function AjustesScreen() {
     setBackupLoading(true);
     try {
       const data = JSON.stringify(
-        { version: 2, exportedAt: new Date().toISOString(), registros },
+        { version: 3, exportedAt: new Date().toISOString(), registros },
         null, 2,
       );
       const path = `${FileSystem.documentDirectory}salvagnini_backup_${Date.now()}.json`;
@@ -106,6 +139,8 @@ export default function AjustesScreen() {
       const available = await Sharing.isAvailableAsync();
       if (available) {
         await Sharing.shareAsync(path, { mimeType: 'application/json', dialogTitle: 'Exportar backup' });
+      } else {
+        showToast('Compartir archivos no está disponible en este dispositivo.', 'error');
       }
     } catch {
       showToast('Error al exportar el backup.', 'error');
@@ -130,7 +165,10 @@ export default function AjustesScreen() {
       }
       Alert.alert(
         'Restaurar backup',
-        `El backup contiene ${imported.length} registro${imported.length === 1 ? '' : 's'}.`,
+        `Contiene ${imported.length} registro${imported.length === 1 ? '' : 's'}.\n` +
+        `Periodo: ${imported.map((r) => r.fecha ?? r.createdAt.slice(0, 10)).sort()[0]} — ` +
+        `${imported.map((r) => r.fecha ?? r.createdAt.slice(0, 10)).sort().at(-1)}.\n` +
+        `Tipos: ${[...new Set(imported.map((r) => r.titulo))].join(', ')}.`,
         [
           { text: 'Cancelar', style: 'cancel' },
           {
@@ -181,6 +219,13 @@ export default function AjustesScreen() {
     } finally {
       setProfileSaving(false);
     }
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Cerrar sesión', 'Los registros locales se conservarán en este dispositivo.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Cerrar sesión', style: 'destructive', onPress: () => logout().catch(() => {}) },
+    ]);
   };
 
   const APPEARANCE_OPTS: { value: ThemePreference; label: string }[] = [
@@ -237,6 +282,10 @@ export default function AjustesScreen() {
           >
             <Text style={styles.profileButtonText}>{profileSaving ? 'Guardando…' : 'Guardar perfil'}</Text>
           </Pressable>
+          <View style={styles.rowDivider} />
+          <Pressable style={({ pressed }) => [styles.row, pressed && styles.rowPressed]} onPress={handleLogout}>
+            <Text style={[styles.rowLabel, styles.destructive]}>Cerrar sesión</Text>
+          </Pressable>
         </Section>
 
         {/* ── PANTALLA ── */}
@@ -278,6 +327,23 @@ export default function AjustesScreen() {
               thumbColor="#ffffff"
             />
           </View>
+          <View style={styles.rowDivider} />
+          <View style={styles.settingBlock}>
+            <Text style={styles.rowLabel}>Avisar después de</Text>
+            <View style={styles.appearanceRow}>
+              {[8, 8.5, 9, 10].map((hours) => (
+                <Pressable
+                  key={hours}
+                  style={[styles.appearanceChip, reminderHours === hours && styles.appearanceChipActive]}
+                  onPress={() => handleReminderHours(hours)}
+                >
+                  <Text style={[styles.appearanceText, reminderHours === hours && styles.appearanceTextActive]}>
+                    {hours} h
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </Section>
 
         {/* ── DATOS ── */}
@@ -285,6 +351,29 @@ export default function AjustesScreen() {
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Jornadas guardadas</Text>
             <Text style={styles.rowValue}>{registros.length}</Text>
+          </View>
+          <View style={styles.rowDivider} />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Objetivo mensual</Text>
+            <TextInput
+              style={styles.compactInput}
+              value={targetHoursInput}
+              onChangeText={setTargetHoursInput}
+              onEndEditing={handleTargetHours}
+              keyboardType="decimal-pad"
+            />
+          </View>
+          <View style={styles.rowDivider} />
+          <View style={styles.settingBlock}>
+            <Text style={styles.rowLabel}>Plantillas guardadas</Text>
+            {templates.map((template) => (
+              <View key={template.id} style={styles.templateRow}>
+                <Text style={styles.templateName}>{template.name}</Text>
+                <Pressable onPress={() => deleteTemplate(template.id)} hitSlop={8}>
+                  <Text style={styles.destructive}>Eliminar</Text>
+                </Pressable>
+              </View>
+            ))}
           </View>
           {storageWarning ? (
             <>
@@ -394,6 +483,16 @@ function makeStyles(C: ThemeColors) {
       color: C.text, fontSize: 14, textAlign: 'right', minWidth: 150,
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border, paddingVertical: 4,
     },
+    compactInput: {
+      color: C.text, fontSize: 14, textAlign: 'right', width: 72,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border, paddingVertical: 4,
+    },
+    settingBlock: { padding: 16, gap: 10 },
+    templateRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingVertical: 6, gap: 12,
+    },
+    templateName: { flex: 1, color: C.textMuted, fontSize: 13 },
     profileButton: {
       margin: 14, marginTop: 4, backgroundColor: Colors.brand,
       paddingVertical: 12, borderRadius: 12, alignItems: 'center',

@@ -48,8 +48,10 @@ export function parseHoursInput(s: string): number | null {
     if (mn > 59) return null;
     return h * 60 + mn;
   }
-  const num = parseFloat(trimmed.replace(',', '.'));
-  if (!isNaN(num) && num > 0) return Math.round(num * 60);
+  const normalized = trimmed.replace(',', '.');
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
+  const num = Number(normalized);
+  if (Number.isFinite(num) && num > 0) return Math.round(num * 60);
   return null;
 }
 
@@ -64,9 +66,11 @@ export function calculateScheduleMinutes(
   fin1: string,
   inicio2 = '',
   fin2 = '',
+  allowNextDay = false,
 ): { minutes: number | null; error: string | null } {
   const s1 = parseTime(inicio1);
-  const e1 = parseTime(fin1);
+  const rawE1 = parseTime(fin1);
+  const e1 = rawE1 !== null && allowNextDay && rawE1 <= (s1 ?? 0) ? rawE1 + 24 * 60 : rawE1;
   if (s1 === null || e1 === null || e1 <= s1) {
     return { minutes: null, error: 'El primer tramo no es válido.' };
   }

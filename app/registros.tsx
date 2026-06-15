@@ -10,7 +10,10 @@ import { type Registro, useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import { formatFecha } from '@/utils/date';
 
-const TIPOS_FILTRO = ['Oficina', 'Cliente', 'Teletrabajo', 'Mixto', 'Casa'];
+const TIPOS_FILTRO = [
+  'Oficina', 'Cliente', 'Teletrabajo', 'Mixto', 'Casa',
+  'Vacaciones', 'Permiso', 'Enfermedad', 'Festivo',
+];
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -102,15 +105,16 @@ export default function RegistrosScreen() {
     ]);
   };
 
+  const renderLeftActions = (id: string) => (
+    <Pressable style={styles.swipeEdit} onPress={() => handleEdit(id)}>
+      <Text style={styles.swipeEditText}>Editar</Text>
+    </Pressable>
+  );
+
   const renderRightActions = (id: string) => (
-    <View style={styles.swipeActions}>
-      <Pressable style={styles.swipeEdit} onPress={() => handleEdit(id)}>
-        <Text style={styles.swipeEditText}>Editar</Text>
-      </Pressable>
-      <Pressable style={styles.swipeDelete} onPress={() => handleDelete(id)}>
-        <Text style={styles.swipeDeleteText}>Borrar</Text>
-      </Pressable>
-    </View>
+    <Pressable style={styles.swipeDelete} onPress={() => handleDelete(id)}>
+      <Text style={styles.swipeDeleteText}>Borrar</Text>
+    </Pressable>
   );
 
   const renderItem = ({ item: registro }: { item: Registro }) => {
@@ -124,9 +128,12 @@ export default function RegistrosScreen() {
     return (
       <Swipeable
         ref={(ref) => { swipeableRefs.current.set(registro.id, ref); }}
+        renderLeftActions={() => renderLeftActions(registro.id)}
         renderRightActions={() => renderRightActions(registro.id)}
+        overshootLeft={false}
         overshootRight={false}
         friction={2}
+        leftThreshold={40}
         rightThreshold={40}
       >
         <Pressable
@@ -213,7 +220,7 @@ export default function RegistrosScreen() {
       <Text style={styles.subtitle}>
         {(query.trim() || tipoFiltro)
           ? `${filteredRegistros.length} resultado${filteredRegistros.length !== 1 ? 's' : ''}`
-          : 'Desliza a la izquierda para editar o borrar.'}
+          : 'Desliza derecha para editar · izquierda para borrar.'}
       </Text>
     </View>
   );
@@ -321,15 +328,16 @@ function makeStyles(C: ThemeColors) {
     filterChipTextActive: { color: '#ffffff' },
 
     // Swipe actions
-    swipeActions: { flexDirection: 'row', marginTop: 12 },
     swipeEdit: {
       backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center',
-      paddingHorizontal: 20, borderTopLeftRadius: 18, borderBottomLeftRadius: 18,
+      paddingHorizontal: 20, marginTop: 12,
+      borderTopRightRadius: 18, borderBottomRightRadius: 18,
     },
     swipeEditText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
     swipeDelete: {
       backgroundColor: '#dc2626', justifyContent: 'center', alignItems: 'center',
-      paddingHorizontal: 20, borderTopRightRadius: 18, borderBottomRightRadius: 18,
+      paddingHorizontal: 20, marginTop: 12,
+      borderTopLeftRadius: 18, borderBottomLeftRadius: 18,
     },
     swipeDeleteText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
 

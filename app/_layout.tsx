@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
+import { AppSettingsProvider } from '@/contexts/app-settings-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { RegistroProvider } from '@/contexts/registro-context';
 import { ThemePreferenceProvider, useThemePreference } from '@/contexts/theme-context';
@@ -34,15 +35,17 @@ function AppContent() {
   return (
     <ThemeProvider value={effectiveScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
-        <RegistroProvider>
-          <AuthGuard />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: Colors[effectiveScheme].background },
-            }}
-          />
-        </RegistroProvider>
+        <AppSettingsProvider>
+          <RegistroProvider>
+            <AuthGuard />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: Colors[effectiveScheme].background },
+              }}
+            />
+          </RegistroProvider>
+        </AppSettingsProvider>
       </AuthProvider>
       <StatusBar style={effectiveScheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>

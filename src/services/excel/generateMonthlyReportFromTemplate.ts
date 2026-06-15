@@ -224,9 +224,10 @@ export function resolveDailyExcelValues(record: MonthlyDayRecord): DailyExcelVal
       break;
     }
     case 'mixed': {
-      if (!homeH && !externalH && !officeH && !remoteH) {
+      if (!homeH && !externalH && !officeH && !remoteH && !vacH && !record.fullHoliday && !record.halfHoliday) {
         console.warn('[Excel] Jornada mixta sin desglose de horas. Proporciona homeRecoveryHours y/o externalHours.', record);
       }
+      C = vacH;
       D = homeH;
       F = externalH ?? remoteH;
       E = officeH;

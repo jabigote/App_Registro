@@ -17,6 +17,10 @@ const TIPO_COLORS: Record<string, string> = {
   Teletrabajo: '#8b5cf6',
   Mixto:       '#14b8a6',
   Casa:        '#22c55e',
+  Vacaciones:  '#06b6d4',
+  Permiso:     '#64748b',
+  Enfermedad:  '#ef4444',
+  Festivo:     '#ec4899',
 };
 
 function useElapsedTimer(fecha: string | undefined, inicio: string | undefined, active: boolean): string {
@@ -98,7 +102,7 @@ export default function HomeScreen() {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const rounded = roundDateToNearest30(new Date());
-      await saveQuickEntry({ ...quickEntry, fin: rounded.time });
+      await saveQuickEntry({ ...quickEntry, fin: rounded.time, finFecha: dateToDateStr(rounded.date) });
       showToast(`Salida registrada: ${rounded.time}`);
     } catch {
       showToast('No se pudo registrar la salida.', 'error');
@@ -115,6 +119,7 @@ export default function HomeScreen() {
         fechaPreset:       quickEntry.fecha,
         inicioPreset:      quickEntry.inicio,
         finPreset:         quickEntry.fin,
+        finFechaPreset:    quickEntry.finFecha ?? quickEntry.fecha,
         descripcionPreset: quickEntry.notas ?? '',
       },
     });

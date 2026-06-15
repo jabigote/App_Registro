@@ -18,6 +18,7 @@ describe('time utilities', () => {
   test('rejects malformed hour inputs', () => {
     expect(parseHoursInput('2:75')).toBeNull();
     expect(parseHoursInput('abc')).toBeNull();
+    expect(parseHoursInput('2abc')).toBeNull();
   });
 
   test('rounding after 23:45 advances the date', () => {
@@ -25,5 +26,11 @@ describe('time utilities', () => {
     expect(rounded.time).toBe('00:00');
     expect(rounded.date.getDate()).toBe(11);
   });
-});
 
+  test('calculates a shift that ends the next day when explicitly allowed', () => {
+    expect(calculateScheduleMinutes('23:30', '00:30', '', '', true)).toEqual({
+      minutes: 60,
+      error: null,
+    });
+  });
+});

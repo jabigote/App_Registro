@@ -33,8 +33,17 @@ export function buildMonthlyDayRecords(registros: Registro[]): MonthlyDayRecord[
     if (registro.titulo === 'Oficina') current.office += baseHours;
     else if (registro.titulo === 'Casa') current.home += baseHours;
     else if (registro.titulo === 'Mixto') {
-      current.home += (parseHoursInput(registro.homeRecoveryHours ?? '') ?? 0) / 60;
-      current.external += (parseHoursInput(registro.externalHours ?? '') ?? 0) / 60;
+      const home = (parseHoursInput(registro.homeRecoveryHours ?? '') ?? 0) / 60;
+      const external = (parseHoursInput(registro.externalHours ?? '') ?? 0) / 60;
+      const externalBase = Math.max(0, external - overtime);
+      const remainingOvertime = Math.max(0, overtime - external);
+      current.home += Math.max(0, home - remainingOvertime);
+      current.external += externalBase;
+    } else if (['Vacaciones', 'Permiso', 'Enfermedad'].includes(registro.titulo)) {
+      current.vacationPermissionSickHours =
+        Number(current.vacationPermissionSickHours ?? 0) + baseHours;
+    } else if (registro.titulo === 'Festivo') {
+      current.fullHoliday = 1;
     } else current.external += baseHours;
 
     current.overtime += overtime;
@@ -52,7 +61,10 @@ export function buildMonthlyDayRecords(registros: Registro[]): MonthlyDayRecord[
     officeHours: day.office || undefined,
     externalHours: day.external || undefined,
     homeRecoveryHours: day.home || undefined,
+    vacationPermissionSickHours: day.vacationPermissionSickHours,
     overtime25: day.overtime || undefined,
+    halfHoliday: day.halfHoliday,
+    fullHoliday: day.fullHoliday,
     halfDiet: day.halfDiet,
     fullDiet: day.fullDiet,
     overnight: day.overnight,
@@ -60,4 +72,3 @@ export function buildMonthlyDayRecords(registros: Registro[]): MonthlyDayRecord[
     notes: [...day.notesList].join(' | ') || undefined,
   }));
 }
-

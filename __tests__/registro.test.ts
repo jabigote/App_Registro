@@ -17,6 +17,13 @@ describe('registro domain', () => {
     expect(isRegistro({ id: 'broken' })).toBe(false);
   });
 
+  test('rejects semantically invalid dates and durations', () => {
+    expect(isRegistro({ ...registro, fecha: '2026-99-99' })).toBe(false);
+    expect(isRegistro({ ...registro, duracion: '8h 99m' })).toBe(false);
+    expect(isRegistro({ ...registro, titulo: 'Mixto', cliente: 'ACME', homeRecoveryHours: '2abc' })).toBe(false);
+    expect(isRegistro({ ...registro, titulo: 'Cliente' })).toBe(false);
+  });
+
   test('fingerprint ignores generated ids', () => {
     const { id: _id, ...withoutId } = registro;
     expect(registroFingerprint(registro)).toBe(registroFingerprint(withoutId));

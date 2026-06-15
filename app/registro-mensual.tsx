@@ -3,8 +3,9 @@ import { Alert, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, Vi
 
 import { BrandLogo } from '@/components/brand-logo';
 import { Colors } from '@/constants/theme';
+import { useAppSettings } from '@/contexts/app-settings-context';
 import { useAuth } from '@/contexts/auth-context';
-import { type Registro, useRegistro } from '@/contexts/registro-context';
+import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import {
   type MonthlyDayRecord,
@@ -13,6 +14,15 @@ import {
   shareReportFile,
 } from '@/src/services/excel/generateMonthlyReportFromTemplate';
 import { buildMonthlyDayRecords } from '@/src/services/excel/build-monthly-records';
+import {
+  buildTypeSummary,
+  buildWeeklySummary,
+  formatWeekRange,
+  getDayFromRegistro,
+  getRegistroDate,
+  totalHoursLabel,
+  totalMinutesFor,
+} from '@/src/services/monthly/analytics';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -25,49 +35,15 @@ const TIPO_COLORS: Record<string, string> = {
   Teletrabajo: '#8b5cf6',
   Mixto:       '#14b8a6',
   Casa:        '#22c55e',
+  Vacaciones:  '#06b6d4',
+  Permiso:     '#64748b',
+  Enfermedad:  '#ef4444',
+  Festivo:     '#ec4899',
 };
-
-function durationToMinutes(duracion: string): number {
-  const h = duracion.match(/(\d+)h/);
-  const m = duracion.match(/(\d+)m/);
-  return (h ? parseInt(h[1]) : 0) * 60 + (m ? parseInt(m[1]) : 0);
-}
 
 function fmtMins(mins: number): string {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
-
-function getWeekStart(dateStr: string): string {
-  const d = new Date(`${dateStr}T12:00:00`);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
-}
-
-function formatWeekRange(weekStart: string): string {
-  const s = new Date(`${weekStart}T12:00:00`);
-  const e = new Date(s);
-  e.setDate(s.getDate() + 6);
-  const fmt = (d: Date) => `${d.getDate()}/${d.getMonth() + 1}`;
-  return `${fmt(s)}–${fmt(e)}`;
-}
-
-function getRegistroDate(r: Registro): Date {
-  if (r.fecha) return new Date(`${r.fecha}T12:00:00`);
-  return new Date(r.createdAt);
-}
-
-function getDayFromRegistro(r: Registro): number {
-  return getRegistroDate(r).getDate();
-}
-
-function totalHorasMes(registros: Registro[]): string {
-  const totalMin = registros.reduce((sum, r) => sum + durationToMinutes(r.duracion), 0);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
@@ -82,6 +58,7 @@ function fmtH(h: number | undefined): string {
 export default function RegistroMensualScreen() {
   const { registros } = useRegistro();
   const { usuario } = useAuth();
+  const { monthlyTargetHours, lockedMonths, toggleMonthLock } = useAppSettings();
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [exporting, setExporting] = useState(false);
@@ -123,30 +100,14 @@ export default function RegistroMensualScreen() {
     return cells;
   }, [year, month]);
 
-  const horasPorTipo = useMemo(() => {
-    const acc: Record<string, number> = {};
-    registrosDelMes.forEach((r) => {
-      acc[r.titulo] = (acc[r.titulo] ?? 0) + durationToMinutes(r.duracion);
-    });
-    return Object.entries(acc).sort(([, a], [, b]) => b - a);
-  }, [registrosDelMes]);
+  const horasPorTipo = useMemo(() => buildTypeSummary(registrosDelMes), [registrosDelMes]);
 
   const maxMinsTipo = useMemo(
     () => Math.max(...horasPorTipo.map(([, m]) => m), 1),
     [horasPorTipo],
   );
 
-  const semanasData = useMemo(() => {
-    const map: Record<string, { mins: number; count: number }> = {};
-    registrosDelMes.forEach((r) => {
-      const fecha = r.fecha ?? r.createdAt.slice(0, 10);
-      const key = getWeekStart(fecha);
-      if (!map[key]) map[key] = { mins: 0, count: 0 };
-      map[key].mins += durationToMinutes(r.duracion);
-      map[key].count++;
-    });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
-  }, [registrosDelMes]);
+  const semanasData = useMemo(() => buildWeeklySummary(registrosDelMes), [registrosDelMes]);
 
   const prevMonth = () => {
     if (month === 0) { setMonth(11); setYear((y) => y - 1); }
@@ -159,7 +120,11 @@ export default function RegistroMensualScreen() {
     else setMonth((m) => m + 1);
   };
 
-  const totalHoras    = totalHorasMes(registrosDelMes);
+  const totalHoras    = totalHoursLabel(registrosDelMes);
+  const totalMinutes = totalMinutesFor(registrosDelMes);
+  const balanceMinutes = totalMinutes - monthlyTargetHours * 60;
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const isLocked = lockedMonths.includes(monthKey);
   const totalDietas   = registrosDelMes.filter((r) => r.dieta && r.dieta !== 'ninguna').length;
   const totalPernoctas = registrosDelMes.filter((r) => r.pernocta).length;
 
@@ -208,6 +173,21 @@ export default function RegistroMensualScreen() {
     setShowPreview(true);
   };
 
+  const handleMonthLock = () => {
+    if (isLocked) {
+      toggleMonthLock(monthKey);
+      return;
+    }
+    Alert.alert(
+      'Cerrar mes',
+      `No se podrán crear, editar ni borrar jornadas de ${MESES[month]} ${year} hasta volver a abrirlo.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Cerrar mes', onPress: () => toggleMonthLock(monthKey) },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
@@ -249,6 +229,24 @@ export default function RegistroMensualScreen() {
             <Text style={styles.summaryValue}>{totalPernoctas}</Text>
             <Text style={styles.summaryLabel}>Pernoctas</Text>
           </View>
+        </View>
+
+        <View style={styles.balanceCard}>
+          <View>
+            <Text style={styles.balanceLabel}>Balance frente al objetivo de {monthlyTargetHours} h</Text>
+            <Text style={[styles.balanceValue, balanceMinutes < 0 && styles.balanceNegative]}>
+              {balanceMinutes >= 0 ? '+' : '−'}{fmtMins(Math.abs(balanceMinutes))}
+            </Text>
+          </View>
+          <Pressable
+            style={[styles.lockButton, isLocked && styles.lockButtonActive]}
+            onPress={handleMonthLock}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.lockButtonText, isLocked && styles.lockButtonTextActive]}>
+              {isLocked ? 'Mes cerrado' : 'Cerrar mes'}
+            </Text>
+          </Pressable>
         </View>
 
         {/* Calendario del mes */}
@@ -547,6 +545,21 @@ function makeStyles(C: ThemeColors) {
     },
     summaryValue: { fontSize: 20, fontWeight: '800', color: Colors.brand },
     summaryLabel: { fontSize: 11, fontWeight: '600', color: C.textMuted },
+    balanceCard: {
+      backgroundColor: C.card, borderRadius: 18, padding: 16,
+      borderWidth: 1, borderColor: C.border,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+    },
+    balanceLabel: { color: C.textMuted, fontSize: 12, fontWeight: '600' },
+    balanceValue: { color: '#16a34a', fontSize: 22, fontWeight: '800', marginTop: 4 },
+    balanceNegative: { color: '#dc2626' },
+    lockButton: {
+      borderRadius: 12, borderWidth: 1, borderColor: Colors.brand,
+      paddingVertical: 10, paddingHorizontal: 14,
+    },
+    lockButtonActive: { backgroundColor: Colors.brand },
+    lockButtonText: { color: Colors.brand, fontSize: 12, fontWeight: '800' },
+    lockButtonTextActive: { color: '#ffffff' },
 
     emptyState: {
       backgroundColor: C.card, borderRadius: 22, padding: 28,
