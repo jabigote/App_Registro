@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable, SafeAreaView, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
@@ -46,12 +46,16 @@ function buildCalendarCells(year: number, month: number): (number | null)[] {
 
 export default function AusenciasScreen() {
   const router = useRouter();
-  const { addRegistro } = useRegistro();
+  const { addRegistros } = useRegistro();
   const { toast, showToast, dismissToast } = useToast();
   const [saving, setSaving] = useState(false);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
+
+  useEffect(() => {
+    return () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); };
+  }, []);
 
   const today = todayDateStr();
   const now = new Date();
@@ -106,16 +110,14 @@ export default function AusenciasScreen() {
     setSaving(true);
     try {
       const dates = Array.from(selectedDates).sort();
-      for (const d of dates) {
-        await addRegistro({
+      await addRegistros(dates.map((d) => ({
           titulo:      tipoAusencia,
           fecha:       d,
           inicio:      '',
           fin:         '',
           duracion:    fmtDuration(horasMin),
           descripcion: descripcion.trim(),
-        });
-      }
+      })));
       const n = dates.length;
       showToast(n > 1 ? `${n} ausencias registradas` : 'Ausencia registrada');
       navTimerRef.current = setTimeout(() => router.replace('/registros'), 1300);

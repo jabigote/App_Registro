@@ -8,6 +8,7 @@ import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
+import { filterRegistrosByMonth, totalHoursLabel } from '@/src/services/monthly/analytics';
 import { dateToDateStr } from '@/utils/date';
 import { roundDateToNearest30 } from '@/utils/time';
 
@@ -45,12 +46,6 @@ function useElapsedTimer(fecha: string | undefined, inicio: string | undefined, 
   return elapsed;
 }
 
-function durationToMinutes(duracion: string): number {
-  const h = duracion.match(/(\d+)h/);
-  const m = duracion.match(/(\d+)m/);
-  return (h ? parseInt(h[1]) : 0) * 60 + (m ? parseInt(m[1]) : 0);
-}
-
 export default function HomeScreen() {
   const router = useRouter();
   const { registros, loading, quickEntry, saveQuickEntry } = useRegistro();
@@ -59,26 +54,20 @@ export default function HomeScreen() {
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
-  const total = registros.length;
-  const recientes = registros.slice(0, 5);
+  const recientes = useMemo(() => [...registros].sort((a, b) => {
+    const dateOrder = (b.fecha ?? b.createdAt.slice(0, 10))
+      .localeCompare(a.fecha ?? a.createdAt.slice(0, 10));
+    return dateOrder || b.createdAt.localeCompare(a.createdAt);
+  }).slice(0, 5), [registros]);
 
   const timerActive = Boolean(quickEntry && !quickEntry.fin);
   const elapsed = useElapsedTimer(quickEntry?.fecha, quickEntry?.inicio, timerActive);
 
-  const horasMes = useMemo(() => {
+  const registrosMes = useMemo(() => {
     const now = new Date();
-    const mes = now.getMonth();
-    const año = now.getFullYear();
-    const totalMin = registros
-      .filter((r) => {
-        const d = r.fecha ? new Date(`${r.fecha}T12:00:00`) : new Date(r.createdAt);
-        return d.getMonth() === mes && d.getFullYear() === año;
-      })
-      .reduce((sum, r) => sum + durationToMinutes(r.duracion), 0);
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    return m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : '—';
+    return filterRegistrosByMonth(registros, now.getFullYear(), now.getMonth());
   }, [registros]);
+  const horasMes = registrosMes.length > 0 ? totalHoursLabel(registrosMes) : '—';
 
   const handleEntrada = async () => {
     if (quickSaving) return;
@@ -217,7 +206,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionLabel}>ESTE MES</Text>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>{loading ? '…' : total}</Text>
+              <Text style={styles.statValue}>{loading ? '…' : registrosMes.length}</Text>
               <Text style={styles.statLabel}>Jornadas</Text>
             </View>
             <View style={styles.statCard}>

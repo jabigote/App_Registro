@@ -14,6 +14,7 @@ type RegistroContextValue = {
   loading: boolean;
   storageWarning: string | null;
   addRegistro: (registro: NewRegistro) => Promise<void>;
+  addRegistros: (registros: NewRegistro[]) => Promise<void>;
   updateRegistro: (id: string, data: Partial<NewRegistro>) => Promise<void>;
   deleteRegistro: (id: string) => Promise<void>;
   replaceRegistros: (registros: Registro[]) => Promise<void>;
@@ -78,10 +79,13 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
 
   const commitRegistros = async (buildNext: (current: Registro[]) => Registro[]) => {
     await queueMutation(async () => {
-      const valid = buildNext(registrosRef.current).filter(isRegistro);
-      await saveRegistros(valid);
-      registrosRef.current = valid;
-      setRegistros(valid);
+      const next = buildNext(registrosRef.current);
+      if (!next.every(isRegistro)) {
+        throw new Error('La operación generó uno o más registros no válidos.');
+      }
+      await saveRegistros(next);
+      registrosRef.current = next;
+      setRegistros(next);
     });
   };
 
@@ -92,15 +96,19 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
 
   const replaceRegistros = async (next: Registro[]) => commitRegistros(() => next);
 
-  const addRegistro = async (registro: NewRegistro) => {
-    const newRegistro: Registro = {
+  const addRegistros = async (items: NewRegistro[]) => {
+    if (items.length === 0) return;
+    const createdAt = new Date().toISOString();
+    const newRegistros: Registro[] = items.map((registro, index) => ({
       ...registro,
-      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
-      createdAt: new Date().toISOString(),
-    };
-    assertUnlocked(newRegistro);
-    await commitRegistros((current) => [newRegistro, ...current]);
+      id: `${Date.now().toString(36)}-${index.toString(36)}-${Math.random().toString(36).slice(2)}`,
+      createdAt,
+    }));
+    newRegistros.forEach(assertUnlocked);
+    await commitRegistros((current) => [...newRegistros, ...current]);
   };
+
+  const addRegistro = async (registro: NewRegistro) => addRegistros([registro]);
 
   const updateRegistro = async (id: string, data: Partial<NewRegistro>) => {
     await commitRegistros((current) => current.map((r) => {
@@ -134,7 +142,7 @@ export function RegistroProvider({ children }: { children: ReactNode }) {
 
   return (
     <RegistroContext.Provider value={{
-      registros, loading, storageWarning, addRegistro, updateRegistro, deleteRegistro,
+      registros, loading, storageWarning, addRegistro, addRegistros, updateRegistro, deleteRegistro,
       replaceRegistros, mergeRegistros, clearRegistros, quickEntry, saveQuickEntry,
     }}>
       {children}

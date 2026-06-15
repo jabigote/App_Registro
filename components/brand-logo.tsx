@@ -1,6 +1,6 @@
 import { useNavigationState } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -57,8 +57,7 @@ export function BrandLogo({ screenTitle }: BrandLogoProps) {
 
   const handleNavigate = (path: '/' | '/nuevo' | '/ausencias' | '/registros' | '/registro-mensual' | '/ajustes') => {
     closeMenu();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    router.replace(path as any);
+    router.replace(path as Href);
   };
 
   return (

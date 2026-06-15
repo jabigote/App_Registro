@@ -8,9 +8,18 @@ import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
-import { DIETA_LABEL, DIETA_OPTS, TIPOS_JORNADA, isAbsence, needsCliente, useJornadaForm } from '@/hooks/useJornadaForm';
+import {
+  DIETA_LABEL,
+  DIETA_OPTS,
+  TIPOS_AUSENCIA_OPTS,
+  TIPOS_TRABAJO,
+  isAbsence,
+  needsAusenciaDesc,
+  needsCliente,
+  useJornadaForm,
+} from '@/hooks/useJornadaForm';
 import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
-import { parseHoursInput } from '@/utils/time';
+import { durationToMinutes, fmtDuration, parseHoursInput, parseTime } from '@/utils/time';
 
 export default function RegistroDetalleScreen() {
   const { id, editMode: editParam } = useLocalSearchParams<{ id: string; editMode?: string }>();
@@ -22,8 +31,15 @@ export default function RegistroDetalleScreen() {
 
   const [editMode, setEditMode] = useState(editParam === '1');
   const [menuVisible, setMenuVisible] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const registro = registros.find((r) => r.id === id);
+  const initialAbsenceMinutes = registro ? durationToMinutes(registro.duracion) : 480;
+  const [absenceHours, setAbsenceHours] = useState(
+    initialAbsenceMinutes % 60 === 0
+      ? String(initialAbsenceMinutes / 60)
+      : `${Math.floor(initialAbsenceMinutes / 60)}:${String(initialAbsenceMinutes % 60).padStart(2, '0')}`,
+  );
 
   const today = todayDateStr();
   const [fecha, setFecha] = useState(
@@ -64,6 +80,7 @@ export default function RegistroDetalleScreen() {
     initialPernocta:      registro?.pernocta ?? false,
     initialHorasExtras:   String(registro?.horasExtras ?? 0),
     initialDescripcion:   registro?.descripcion ?? '',
+    allowNextDay:         true,
   });
 
   // Definida aquí como closure para acceder a los styles dinámicos
@@ -125,15 +142,27 @@ export default function RegistroDetalleScreen() {
   };
 
   const handleGuardar = async () => {
-    if (!effectiveCanSave) return;
+    if (!effectiveCanSave || saving) return;
+    setSaving(true);
     try {
       if (isAbsence(tipoJornada)) {
+        const absenceMinutes = needsAusenciaDesc(tipoJornada) ? parseHoursInput(absenceHours) : 480;
+        if (absenceMinutes === null) return;
         await updateRegistro(id!, {
           titulo:      tipoJornada,
+          cliente:     undefined,
           fecha,
           inicio:      '',
+          fin1:        undefined,
+          inicio2:     undefined,
           fin:         '',
-          duracion:    registro.duracion,
+          finFecha:    undefined,
+          duracion:    fmtDuration(absenceMinutes),
+          homeRecoveryHours: undefined,
+          externalHours:     undefined,
+          dieta:       undefined,
+          pernocta:    undefined,
+          horasExtras: undefined,
           descripcion: descripcion.trim(),
         });
       } else if (isMixed) {
@@ -143,7 +172,10 @@ export default function RegistroDetalleScreen() {
           cliente:  nombreCliente.trim() || undefined,
           fecha,
           inicio:   '',
+          fin1:     undefined,
+          inicio2:  undefined,
           fin:      '',
+          finFecha: undefined,
           duracion: effectiveDuration,
           homeRecoveryHours: homeRecoveryInput.trim() || undefined,
           externalHours:     externalHoursInput.trim() || undefined,
@@ -155,6 +187,11 @@ export default function RegistroDetalleScreen() {
       } else {
         if (!effectiveDuration) return;
         const has2 = inicio2.trim().length > 0 && fin2.trim().length > 0;
+        const startMinutes = parseTime(inicio1);
+        const endMinutes = parseTime(fin1);
+        const finFecha = !has2 && startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes
+          ? offsetDateStr(fecha, 1)
+          : undefined;
         await updateRegistro(id!, {
           titulo:   tipoJornada,
           cliente:  needsCliente(tipoJornada) ? nombreCliente.trim() : undefined,
@@ -163,6 +200,7 @@ export default function RegistroDetalleScreen() {
           fin1:     fin1,
           inicio2:  has2 ? inicio2 : undefined,
           fin:      has2 ? fin2 : fin1,
+          finFecha,
           duracion: effectiveDuration,
           homeRecoveryHours: undefined,
           externalHours:     undefined,
@@ -176,11 +214,17 @@ export default function RegistroDetalleScreen() {
       showToast('Cambios guardados');
     } catch {
       showToast('Error al guardar. Inténtalo de nuevo.');
+    } finally {
+      setSaving(false);
     }
   };
 
   const isAbsenceRegistro = isAbsence(registro.titulo);
-  const effectiveCanSave = isAbsenceRegistro ? tipoJornada.length > 0 : (canSave && Boolean(effectiveDuration));
+  const tipoOptions = isAbsenceRegistro ? TIPOS_AUSENCIA_OPTS : TIPOS_TRABAJO;
+  const absenceHoursError = needsAusenciaDesc(tipoJornada) && parseHoursInput(absenceHours) === null;
+  const effectiveCanSave = isAbsence(tipoJornada)
+    ? tipoJornada.length > 0 && !absenceHoursError
+    : (canSave && Boolean(effectiveDuration));
   const dietaLabel = DIETA_LABEL[registro.dieta ?? 'ninguna'];
   const extras = registro.horasExtras && registro.horasExtras > 0
     ? `${registro.horasExtras}h extra` : null;
@@ -302,14 +346,14 @@ export default function RegistroDetalleScreen() {
               >
                 <Text style={tipoJornada ? styles.selectText : styles.selectPlaceholder}>
                   {tipoJornada
-                    ? TIPOS_JORNADA.find((t) => t.value === tipoJornada)?.label
+                    ? tipoOptions.find((t) => t.value === tipoJornada)?.label
                     : 'Selecciona el tipo de jornada'}
                 </Text>
                 <Text style={styles.selectArrow}>{tipoOpen ? '▲' : '▼'}</Text>
               </Pressable>
               {tipoOpen && (
                 <View style={styles.dropdownList}>
-                  {TIPOS_JORNADA.map((tipo) => (
+                  {tipoOptions.map((tipo) => (
                     <Pressable
                       key={tipo.value}
                       style={[styles.dropdownItem, tipoJornada === tipo.value && styles.dropdownItemActive]}
@@ -477,6 +521,21 @@ export default function RegistroDetalleScreen() {
               </View>
             )}
 
+            {needsAusenciaDesc(tipoJornada) && (
+              <View style={styles.fieldset}>
+                <Text style={styles.fieldLabel}>Horas de ausencia</Text>
+                <TextInput
+                  style={[styles.input, absenceHoursError && styles.inputError]}
+                  value={absenceHours}
+                  onChangeText={(value) => setAbsenceHours(value.replace(/[^0-9.:,]/g, ''))}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="p.ej. 2 o 2:30"
+                  placeholderTextColor={C.textFaint}
+                />
+                {absenceHoursError ? <Text style={styles.fieldError}>Introduce unas horas válidas.</Text> : null}
+              </View>
+            )}
+
             {/* Descripción */}
             <View style={styles.fieldset}>
               <Text style={styles.fieldLabel}>
@@ -493,11 +552,11 @@ export default function RegistroDetalleScreen() {
             </View>
 
             <Pressable
-              style={[styles.buttonPrimary, !effectiveCanSave && styles.buttonDisabled]}
+              style={[styles.buttonPrimary, (!effectiveCanSave || saving) && styles.buttonDisabled]}
               onPress={handleGuardar}
-              disabled={!effectiveCanSave}
+              disabled={!effectiveCanSave || saving}
             >
-              <Text style={styles.buttonPrimaryText}>Guardar cambios</Text>
+              <Text style={styles.buttonPrimaryText}>{saving ? 'Guardando…' : 'Guardar cambios'}</Text>
             </Pressable>
           </>
         )}

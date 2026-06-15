@@ -10,6 +10,13 @@ export function getDayFromRegistro(registro: Registro): number {
   return getRegistroDate(registro).getDate();
 }
 
+export function filterRegistrosByMonth(registros: Registro[], year: number, month: number): Registro[] {
+  return registros.filter((registro) => {
+    const date = getRegistroDate(registro);
+    return date.getFullYear() === year && date.getMonth() === month;
+  });
+}
+
 export function totalMinutesFor(registros: Registro[]): number {
   return registros.reduce((sum, registro) => sum + durationToMinutes(registro.duracion), 0);
 }

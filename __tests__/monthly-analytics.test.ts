@@ -2,6 +2,7 @@ import type { Registro } from '@/src/domain/registro';
 import {
   buildTypeSummary,
   buildWeeklySummary,
+  filterRegistrosByMonth,
   totalHoursLabel,
   totalMinutesFor,
 } from '@/src/services/monthly/analytics';
@@ -35,5 +36,10 @@ describe('monthly analytics', () => {
     expect(totalHoursLabel(records)).toBe('8h 30m');
     expect(buildTypeSummary(records)).toEqual([['Cliente', 270], ['Oficina', 240]]);
     expect(buildWeeklySummary(records)).toEqual([['2026-06-08', { mins: 510, count: 2 }]]);
+  });
+
+  test('filters records by calendar month', () => {
+    expect(filterRegistrosByMonth(records, 2026, 5)).toEqual(records);
+    expect(filterRegistrosByMonth(records, 2026, 4)).toEqual([]);
   });
 });
