@@ -19,6 +19,17 @@ export function offsetDateStr(dateStr: string, days: number): string {
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MESES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
+export function getDatesInRange(startStr: string, endStr: string): string[] {
+  const dates: string[] = [];
+  const end = new Date(`${endStr}T12:00:00`);
+  const cur = new Date(`${startStr}T12:00:00`);
+  while (cur <= end) {
+    dates.push(dateToDateStr(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
 /** Devuelve "Hoy", "Ayer" o "Mié 4 jun" según la fecha YYYY-MM-DD. */
 export function formatFecha(dateStr: string): string {
   const today = todayDateStr();

@@ -8,7 +8,7 @@ import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
-import { DIETA_LABEL, DIETA_OPTS, TIPOS_JORNADA, needsCliente, useJornadaForm } from '@/hooks/useJornadaForm';
+import { DIETA_LABEL, DIETA_OPTS, TIPOS_JORNADA, isAbsence, needsCliente, useJornadaForm } from '@/hooks/useJornadaForm';
 import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
 import { parseHoursInput } from '@/utils/time';
 
@@ -125,9 +125,19 @@ export default function RegistroDetalleScreen() {
   };
 
   const handleGuardar = async () => {
-    if (!canSave || !effectiveDuration) return;
+    if (!effectiveCanSave) return;
     try {
-      if (isMixed) {
+      if (isAbsence(tipoJornada)) {
+        await updateRegistro(id!, {
+          titulo:      tipoJornada,
+          fecha,
+          inicio:      '',
+          fin:         '',
+          duracion:    registro.duracion,
+          descripcion: descripcion.trim(),
+        });
+      } else if (isMixed) {
+        if (!effectiveDuration) return;
         await updateRegistro(id!, {
           titulo:   tipoJornada,
           cliente:  nombreCliente.trim() || undefined,
@@ -143,6 +153,7 @@ export default function RegistroDetalleScreen() {
           descripcion: descripcion.trim(),
         });
       } else {
+        if (!effectiveDuration) return;
         const has2 = inicio2.trim().length > 0 && fin2.trim().length > 0;
         await updateRegistro(id!, {
           titulo:   tipoJornada,
@@ -168,6 +179,8 @@ export default function RegistroDetalleScreen() {
     }
   };
 
+  const isAbsenceRegistro = isAbsence(registro.titulo);
+  const effectiveCanSave = isAbsenceRegistro ? tipoJornada.length > 0 : (canSave && Boolean(effectiveDuration));
   const dietaLabel = DIETA_LABEL[registro.dieta ?? 'ninguna'];
   const extras = registro.horasExtras && registro.horasExtras > 0
     ? `${registro.horasExtras}h extra` : null;
@@ -251,9 +264,9 @@ export default function RegistroDetalleScreen() {
                 ? <Row label="Finaliza" value={formatFecha(registro.finFecha)} />
                 : null}
               <Row label="Duración" value={registro.duracion} />
-              <Row label="Dieta" value={dietaLabel} />
-              <Row label="Pernocta" value={registro.pernocta ? 'Sí' : 'No'} />
-              {extras ? <Row label="Horas extras" value={extras} /> : null}
+              {!isAbsenceRegistro && <Row label="Dieta" value={dietaLabel} />}
+              {!isAbsenceRegistro && <Row label="Pernocta" value={registro.pernocta ? 'Sí' : 'No'} />}
+              {!isAbsenceRegistro && extras ? <Row label="Horas extras" value={extras} /> : null}
               {registro.descripcion ? <Row label="Descripción" value={registro.descripcion} /> : null}
             </View>
           </>
@@ -321,8 +334,8 @@ export default function RegistroDetalleScreen() {
               </View>
             )}
 
-            {/* Horario normal (no Mixto) */}
-            {!isMixed && (
+            {/* Horario normal (no Mixto, no ausencia) */}
+            {!isMixed && !isAbsence(tipoJornada) && (
               <View style={styles.fieldset}>
                 <Text style={styles.fieldLabel}>Horario</Text>
 
@@ -379,7 +392,7 @@ export default function RegistroDetalleScreen() {
             )}
 
             {/* Desglose para Mixto */}
-            {isMixed && (
+            {isMixed && !isAbsence(tipoJornada) && (
               <View style={styles.fieldset}>
                 <Text style={styles.fieldLabel}>Desglose de horas</Text>
 
@@ -413,54 +426,62 @@ export default function RegistroDetalleScreen() {
               </View>
             )}
 
-            {/* Dieta */}
-            <View style={styles.fieldset}>
-              <Text style={styles.fieldLabel}>Dieta</Text>
-              <View style={styles.chipRow}>
-                {DIETA_OPTS.map((opt) => (
-                  <Pressable
-                    key={opt.value}
-                    style={[styles.chip, dieta === opt.value && styles.chipSelected]}
-                    onPress={() => setDieta(opt.value)}
-                  >
-                    <Text style={[styles.chipText, dieta === opt.value && styles.chipTextSelected]}>
-                      {opt.label}
-                    </Text>
+            {/* Dieta (solo jornadas de trabajo) */}
+            {!isAbsence(tipoJornada) && (
+              <View style={styles.fieldset}>
+                <Text style={styles.fieldLabel}>Dieta</Text>
+                <View style={styles.chipRow}>
+                  {DIETA_OPTS.map((opt) => (
+                    <Pressable
+                      key={opt.value}
+                      style={[styles.chip, dieta === opt.value && styles.chipSelected]}
+                      onPress={() => setDieta(opt.value)}
+                    >
+                      <Text style={[styles.chipText, dieta === opt.value && styles.chipTextSelected]}>
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Pernocta (solo jornadas de trabajo) */}
+            {!isAbsence(tipoJornada) && (
+              <View style={styles.fieldset}>
+                <Text style={styles.fieldLabel}>Pernocta</Text>
+                <View style={styles.chipRow}>
+                  <Pressable style={[styles.chip, !pernocta && styles.chipSelected]} onPress={() => setPernocta(false)}>
+                    <Text style={[styles.chipText, !pernocta && styles.chipTextSelected]}>No</Text>
                   </Pressable>
-                ))}
+                  <Pressable style={[styles.chip, pernocta && styles.chipSelected]} onPress={() => setPernocta(true)}>
+                    <Text style={[styles.chipText, pernocta && styles.chipTextSelected]}>Sí</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
+            )}
 
-            {/* Pernocta */}
-            <View style={styles.fieldset}>
-              <Text style={styles.fieldLabel}>Pernocta</Text>
-              <View style={styles.chipRow}>
-                <Pressable style={[styles.chip, !pernocta && styles.chipSelected]} onPress={() => setPernocta(false)}>
-                  <Text style={[styles.chipText, !pernocta && styles.chipTextSelected]}>No</Text>
-                </Pressable>
-                <Pressable style={[styles.chip, pernocta && styles.chipSelected]} onPress={() => setPernocta(true)}>
-                  <Text style={[styles.chipText, pernocta && styles.chipTextSelected]}>Sí</Text>
-                </Pressable>
+            {/* Horas extras (solo jornadas de trabajo) */}
+            {!isAbsence(tipoJornada) && (
+              <View style={styles.fieldset}>
+                <Text style={styles.fieldLabel}>Horas extras (+25 %)</Text>
+                <TextInput
+                  style={[styles.input, extrasError && styles.inputError]}
+                  value={horasExtras}
+                  onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.:,]/g, ''))}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor={C.textFaint}
+                />
+                {extrasError ? <Text style={styles.fieldError}>{extrasError}</Text> : null}
               </View>
-            </View>
-
-            {/* Horas extras */}
-            <View style={styles.fieldset}>
-              <Text style={styles.fieldLabel}>Horas extras (+25 %)</Text>
-              <TextInput
-                style={[styles.input, extrasError && styles.inputError]}
-                value={horasExtras}
-                onChangeText={(v) => setHorasExtras(v.replace(/[^0-9.:,]/g, ''))}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                placeholderTextColor={C.textFaint}
-              />
-              {extrasError ? <Text style={styles.fieldError}>{extrasError}</Text> : null}
-            </View>
+            )}
 
             {/* Descripción */}
             <View style={styles.fieldset}>
-              <Text style={styles.fieldLabel}>Notas (opcional)</Text>
+              <Text style={styles.fieldLabel}>
+                {isAbsence(tipoJornada) ? 'Motivo / descripción (opcional)' : 'Notas (opcional)'}
+              </Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={descripcion}
@@ -472,9 +493,9 @@ export default function RegistroDetalleScreen() {
             </View>
 
             <Pressable
-              style={[styles.buttonPrimary, !canSave && styles.buttonDisabled]}
+              style={[styles.buttonPrimary, !effectiveCanSave && styles.buttonDisabled]}
               onPress={handleGuardar}
-              disabled={!canSave}
+              disabled={!effectiveCanSave}
             >
               <Text style={styles.buttonPrimaryText}>Guardar cambios</Text>
             </Pressable>

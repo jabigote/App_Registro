@@ -65,7 +65,6 @@ export default function HomeScreen() {
   const timerActive = Boolean(quickEntry && !quickEntry.fin);
   const elapsed = useElapsedTimer(quickEntry?.fecha, quickEntry?.inicio, timerActive);
 
-  // Horas totales del mes actual
   const horasMes = useMemo(() => {
     const now = new Date();
     const mes = now.getMonth();
@@ -138,26 +137,24 @@ export default function HomeScreen() {
     }
   };
 
-  // Estado descriptivo del fichaje actual
   const fichajeEstado = quickEntry?.fin
     ? `${quickEntry.inicio} → ${quickEntry.fin}`
     : quickEntry
-    ? `Entrada a las ${quickEntry.inicio}`
+    ? `Entrada · ${quickEntry.inicio}`
     : 'Sin fichar';
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* ── Encabezado estático ── */}
       <View style={styles.header}>
         <BrandLogo screenTitle="Panel de control" />
       </View>
 
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
 
-        {/* ── Fichaje rápido: sección abierta, sin card ── */}
-        <View style={styles.fichajeSection}>
+        {/* ── Fichaje rápido ── */}
+        <View style={styles.fichajeCard}>
           <View style={styles.fichajeTopRow}>
-            <Text style={styles.fichajeSectionLabel}>Fichaje rápido</Text>
+            <Text style={styles.sectionLabel}>FICHAJE RÁPIDO</Text>
             {timerActive && elapsed ? (
               <View style={styles.timerBadge}>
                 <Text style={styles.timerText}>{elapsed}</Text>
@@ -165,9 +162,14 @@ export default function HomeScreen() {
             ) : null}
           </View>
 
+          <View style={styles.separator} />
+
           <Text style={styles.fichajeEstado}>{fichajeEstado}</Text>
+
           {quickEntry && quickEntry.fecha !== dateToDateStr(new Date()) ? (
-            <Text style={styles.quickWarning}>Este fichaje pertenece al {quickEntry.fecha}. Revísalo antes de continuar.</Text>
+            <Text style={styles.quickWarning}>
+              Este fichaje pertenece al {quickEntry.fecha}. Revísalo antes de continuar.
+            </Text>
           ) : null}
 
           {quickEntry?.fin ? (
@@ -210,26 +212,29 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* ── Stats del mes en curso ── */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{loading ? '…' : total}</Text>
-            <Text style={styles.statLabel}>Jornadas</Text>
+        {/* ── Resumen del mes ── */}
+        <View style={styles.statsSection}>
+          <Text style={styles.sectionLabel}>ESTE MES</Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{loading ? '…' : total}</Text>
+              <Text style={styles.statLabel}>Jornadas</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{loading ? '…' : horasMes}</Text>
+              <Text style={styles.statLabel}>Horas</Text>
+            </View>
+            <Pressable
+              style={[styles.statCard, styles.statCardAction]}
+              onPress={() => router.push('/registro-mensual')}
+            >
+              <Text style={[styles.statValue, { color: Colors.brand }]}>→</Text>
+              <Text style={[styles.statLabel, { color: Colors.brand }]}>Mensual</Text>
+            </Pressable>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{loading ? '…' : horasMes}</Text>
-            <Text style={styles.statLabel}>Este mes</Text>
-          </View>
-          <Pressable
-            style={[styles.statCard, styles.statCardAction]}
-            onPress={() => router.push('/registro-mensual')}
-          >
-            <Text style={[styles.statValue, { color: Colors.brand }]}>→</Text>
-            <Text style={[styles.statLabel, { color: Colors.brand }]}>Mensual</Text>
-          </Pressable>
         </View>
 
-        {/* ── CTA nuevo registro ── */}
+        {/* ── CTA nueva jornada ── */}
         <Pressable style={styles.btnNuevo} onPress={() => router.push('/nuevo')}>
           <Text style={styles.btnNuevoText}>+ Nueva jornada</Text>
         </Pressable>
@@ -238,19 +243,24 @@ export default function HomeScreen() {
         {!loading && recientes.length > 0 ? (
           <View style={styles.recentSection}>
             <View style={styles.recentHeader}>
-              <Text style={styles.recentTitle}>Últimas jornadas</Text>
+              <Text style={styles.sectionLabel}>ÚLTIMAS JORNADAS</Text>
               <Pressable onPress={() => router.push('/registros')}>
                 <Text style={styles.recentVerTodo}>Ver todo →</Text>
               </Pressable>
             </View>
-            {recientes.map((r) => (
+            <View style={styles.separator} />
+            {recientes.map((r, idx) => (
               <Pressable
                 key={r.id}
-                style={({ pressed }) => [styles.recentCard, pressed && styles.recentCardPressed]}
+                style={({ pressed }) => [
+                  styles.recentCard,
+                  pressed && styles.recentCardPressed,
+                  idx < recientes.length - 1 && styles.recentCardBorder,
+                ]}
                 onPress={() => router.push({ pathname: '/registro-detalle', params: { id: r.id } })}
               >
                 <View style={styles.recentCardLeft}>
-                  <View style={[styles.tipoTag, { backgroundColor: `${TIPO_COLORS[r.titulo] ?? Colors.brand}20` }]}>
+                  <View style={[styles.tipoTag, { backgroundColor: `${TIPO_COLORS[r.titulo] ?? Colors.brand}18` }]}>
                     <View style={[styles.tipoDot, { backgroundColor: TIPO_COLORS[r.titulo] ?? Colors.brand }]} />
                     <Text style={[styles.tipoTagText, { color: TIPO_COLORS[r.titulo] ?? Colors.brand }]}>
                       {r.titulo}
@@ -263,7 +273,14 @@ export default function HomeScreen() {
                     <Text style={styles.recentMeta}>{r.inicio} — {r.fin}</Text>
                   ) : null}
                 </View>
-                <Text style={styles.recentDuracion}>{r.duracion}</Text>
+                <View style={styles.recentCardRight}>
+                  <Text style={styles.recentDuracion}>{r.duracion}</Text>
+                  <Text style={styles.recentFecha}>
+                    {r.fecha
+                      ? new Date(`${r.fecha}T12:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+                      : ''}
+                  </Text>
+                </View>
               </Pressable>
             ))}
           </View>
@@ -273,6 +290,7 @@ export default function HomeScreen() {
             <Text style={styles.emptyText}>Usa los botones de arriba para fichar tu primera jornada.</Text>
           </View>
         ) : null}
+
       </ScrollView>
 
       <Toast toast={toast} onDismiss={dismissToast} />
@@ -289,17 +307,27 @@ function makeStyles(C: ThemeColors) {
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
     },
     page: {
-      padding: 24, paddingTop: 20, gap: 20, paddingBottom: 40,
+      padding: 20, paddingTop: 20, gap: 16, paddingBottom: 40,
       width: '100%', maxWidth: 900, alignSelf: 'center',
     },
 
-    // ── Fichaje rápido ──
-    fichajeSection: { gap: 12 },
-    fichajeTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    fichajeSectionLabel: {
-      fontSize: 12, fontWeight: '800', color: Colors.brand,
-      textTransform: 'uppercase', letterSpacing: 1,
+    // ── Etiquetas de sección ──
+    sectionLabel: {
+      fontSize: 11, fontWeight: '800', color: Colors.brand,
+      textTransform: 'uppercase', letterSpacing: 1.2,
     },
+    separator: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: C.border,
+    },
+
+    // ── Fichaje rápido ──
+    fichajeCard: {
+      backgroundColor: C.card, borderRadius: 22,
+      borderWidth: 1, borderColor: C.border,
+      padding: 18, gap: 12,
+    },
+    fichajeTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     timerBadge: {
       backgroundColor: '#22c55e18', borderRadius: 10,
       paddingHorizontal: 12, paddingVertical: 4,
@@ -308,25 +336,26 @@ function makeStyles(C: ThemeColors) {
     timerText: { fontSize: 13, fontWeight: '700', color: '#22c55e' },
     fichajeEstado: { fontSize: 22, fontWeight: '700', color: C.text },
     quickWarning: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: '#b45309' },
-    fichajeActions: { flexDirection: 'row', gap: 12 },
+    fichajeActions: { flexDirection: 'row', gap: 10 },
     btnPrimary: {
-      flex: 1, backgroundColor: Colors.brand, borderRadius: 16,
-      paddingVertical: 16, alignItems: 'center',
+      flex: 1, backgroundColor: Colors.brand, borderRadius: 14,
+      paddingVertical: 15, alignItems: 'center',
     },
     btnEntrada: {
-      flex: 1, backgroundColor: '#22c55e', borderRadius: 16,
-      paddingVertical: 16, alignItems: 'center',
+      flex: 1, backgroundColor: '#22c55e', borderRadius: 14,
+      paddingVertical: 15, alignItems: 'center',
     },
     btnDisabled: { backgroundColor: '#d1d5db' },
-    btnPrimaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+    btnPrimaryText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
     btnSecondary: {
-      flex: 1, backgroundColor: `${Colors.brand}15`, borderRadius: 16,
-      paddingVertical: 16, alignItems: 'center',
-      borderWidth: 1, borderColor: `${Colors.brand}40`,
+      flex: 1, backgroundColor: `${Colors.brand}12`, borderRadius: 14,
+      paddingVertical: 15, alignItems: 'center',
+      borderWidth: 1, borderColor: `${Colors.brand}30`,
     },
-    btnSecondaryText: { color: Colors.brand, fontSize: 15, fontWeight: '700' },
+    btnSecondaryText: { color: Colors.brand, fontSize: 14, fontWeight: '700' },
 
     // ── Stats ──
+    statsSection: { gap: 10 },
     statsRow: { flexDirection: 'row', gap: 10 },
     statCard: {
       flex: 1, backgroundColor: C.card, borderRadius: 18, padding: 16,
@@ -345,26 +374,35 @@ function makeStyles(C: ThemeColors) {
     btnNuevoText: { color: '#ffffff', fontSize: 17, fontWeight: '800' },
 
     // ── Últimas jornadas ──
-    recentSection: { gap: 10 },
-    recentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    recentTitle: { fontSize: 16, fontWeight: '700', color: C.text },
+    recentSection: {
+      backgroundColor: C.card, borderRadius: 22,
+      borderWidth: 1, borderColor: C.border,
+      overflow: 'hidden', gap: 0,
+    },
+    recentHeader: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingHorizontal: 16, paddingVertical: 14,
+    },
     recentVerTodo: { fontSize: 13, fontWeight: '600', color: Colors.brand },
     recentCard: {
-      backgroundColor: C.card, borderRadius: 16, padding: 14,
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8,
-      shadowOffset: { width: 0, height: 4 }, elevation: 1,
+      paddingHorizontal: 16, paddingVertical: 14,
     },
-    recentCardPressed: { opacity: 0.7 },
+    recentCardPressed: { backgroundColor: C.subtleBg },
+    recentCardBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
+    },
     recentCardLeft: { flex: 1, gap: 4, marginRight: 12 },
+    recentCardRight: { alignItems: 'flex-end', gap: 2 },
     tipoTag: {
-      flexDirection: 'row', alignItems: 'center', gap: 6,
-      alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
     },
-    tipoDot: { width: 6, height: 6, borderRadius: 3 },
+    tipoDot: { width: 5, height: 5, borderRadius: 3 },
     tipoTagText: { fontSize: 11, fontWeight: '700' },
     recentMeta: { fontSize: 12, color: C.textMuted },
-    recentDuracion: { fontSize: 16, fontWeight: '800', color: Colors.brand },
+    recentDuracion: { fontSize: 15, fontWeight: '800', color: Colors.brand },
+    recentFecha: { fontSize: 11, color: C.textFaint, fontWeight: '500' },
 
     emptyState: {
       backgroundColor: C.card, borderRadius: 20, padding: 28,

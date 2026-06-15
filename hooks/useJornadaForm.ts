@@ -15,6 +15,24 @@ export const TIPOS_JORNADA = [
   { value: 'Festivo',     label: 'Festivo' },
 ];
 
+const AUSENCIA_VALUES = ['Vacaciones', 'Permiso', 'Enfermedad', 'Festivo'] as const;
+
+export const TIPOS_TRABAJO = TIPOS_JORNADA.filter(
+  (t) => !(AUSENCIA_VALUES as readonly string[]).includes(t.value),
+);
+
+export const TIPOS_AUSENCIA_OPTS = TIPOS_JORNADA.filter(
+  (t) => (AUSENCIA_VALUES as readonly string[]).includes(t.value),
+);
+
+export function isAbsence(tipo: string): boolean {
+  return (AUSENCIA_VALUES as readonly string[]).includes(tipo);
+}
+
+export function needsAusenciaDesc(tipo: string): boolean {
+  return tipo === 'Permiso' || tipo === 'Enfermedad';
+}
+
 export const DIETA_OPTS: { value: Dieta; label: string }[] = [
   { value: 'ninguna',  label: 'Sin dieta' },
   { value: 'media',    label: '½ Dieta' },

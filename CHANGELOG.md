@@ -6,6 +6,13 @@ La versión debe actualizarse conjuntamente en `app.json`, `package.json` y
 `constants/release-history.ts`. La prueba `version-history.test.ts` comprueba que las tres fuentes
 permanezcan sincronizadas.
 
+## 1.3.0 — 15 de junio de 2026
+
+- Ausencias (vacaciones, permiso, enfermedad, festivo) movidas a una sección desplegable propia dentro del formulario de nueva jornada.
+- Soporte de rango de fechas para ausencias de varios días; permiso y enfermedad admiten horas parciales y descripción opcional.
+- Rediseño del panel principal: fichaje rápido en tarjeta contenida, etiquetas de sección, separadores de línea fina y lista de jornadas recientes con fecha visible.
+- Vista y edición de ausencias sin campos de horario, dieta ni pernocta innecesarios.
+
 ## 1.2.0 — 12 de junio de 2026
 
 - Añadidas plantillas rápidas, ausencias, festivos, objetivo y cierre mensual.

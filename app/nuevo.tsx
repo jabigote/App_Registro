@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { LayoutAnimation, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { ClienteSearchInput } from '@/components/cliente-search-input';
@@ -10,9 +10,17 @@ import { Colors } from '@/constants/theme';
 import { useAppSettings } from '@/contexts/app-settings-context';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
-import { DIETA_OPTS, TIPOS_JORNADA, needsCliente, useJornadaForm } from '@/hooks/useJornadaForm';
-import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
-import { parseHoursInput } from '@/utils/time';
+import {
+  DIETA_OPTS,
+  TIPOS_AUSENCIA_OPTS,
+  TIPOS_TRABAJO,
+  isAbsence,
+  needsAusenciaDesc,
+  needsCliente,
+  useJornadaForm,
+} from '@/hooks/useJornadaForm';
+import { getDatesInRange, formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
+import { fmtDuration, parseHoursInput } from '@/utils/time';
 import type { JornadaTemplate } from '@/src/domain/app-settings';
 
 export default function NuevoRegistroScreen() {
@@ -33,12 +41,20 @@ export default function NuevoRegistroScreen() {
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
+  const [ausenciaOpen, setAusenciaOpen] = useState(false);
+  const [ausenciaFechaFin, setAusenciaFechaFin] = useState(fechaPreset ?? todayDateStr());
+  const [ausenciaHorasInput, setAusenciaHorasInput] = useState('');
+
   useEffect(() => {
     return () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); };
   }, []);
 
   const [fecha, setFecha] = useState(fechaPreset ?? todayDateStr());
   const today = todayDateStr();
+
+  useEffect(() => {
+    if (ausenciaFechaFin < fecha) setAusenciaFechaFin(fecha);
+  }, [fecha]);
 
   const {
     tipoJornada, setTipoJornada,
@@ -69,8 +85,18 @@ export default function NuevoRegistroScreen() {
     allowNextDay: Boolean(fechaPreset && finFechaPreset && finFechaPreset > fechaPreset),
   });
 
+  const absenceSelected = isAbsence(tipoJornada);
+  const absenceCanSave = absenceSelected && tipoJornada.length > 0 && ausenciaFechaFin >= fecha;
+  const effectiveCanSave = absenceSelected ? absenceCanSave : canSave;
+
   const applyTemplate = (template: JornadaTemplate) => {
     setTipoJornada(template.tipo);
+    if (isAbsence(template.tipo)) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setAusenciaOpen(true);
+    } else {
+      setAusenciaOpen(false);
+    }
     setNombreCliente(template.cliente ?? '');
     setInicio1(template.inicio1 ?? '08:00');
     setFin1(template.fin1 ?? '13:00');
@@ -103,10 +129,35 @@ export default function NuevoRegistroScreen() {
   };
 
   const handleGuardar = async () => {
-    if (!canSave || !effectiveDuration || saving) return;
+    if (!effectiveCanSave || saving) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSaving(true);
     try {
+      if (absenceSelected) {
+        const dates = getDatesInRange(fecha, ausenciaFechaFin);
+        const isSingleDay = dates.length === 1;
+        const horasMin =
+          isSingleDay && needsAusenciaDesc(tipoJornada) && ausenciaHorasInput.trim()
+            ? (parseHoursInput(ausenciaHorasInput) ?? 480)
+            : 480;
+        for (const d of dates) {
+          await addRegistro({
+            titulo: tipoJornada,
+            fecha: d,
+            inicio: '',
+            fin: '',
+            duracion: fmtDuration(horasMin),
+            descripcion: descripcion.trim(),
+          });
+        }
+        const msg = dates.length > 1 ? `${dates.length} días registrados` : 'Ausencia guardada';
+        showToast(msg);
+        navTimerRef.current = setTimeout(() => router.replace('/registros'), 1200);
+        return;
+      }
+
+      if (!effectiveDuration) return;
+
       if (isMixed) {
         await addRegistro({
           titulo:   tipoJornada,
@@ -161,6 +212,7 @@ export default function NuevoRegistroScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Plantillas rápidas */}
         {templates.length > 0 ? (
           <View style={styles.fieldset}>
             <Text style={styles.fieldLabel}>Plantillas rápidas</Text>
@@ -192,7 +244,7 @@ export default function NuevoRegistroScreen() {
           </View>
         </View>
 
-        {/* Tipo de jornada — chips horizontales */}
+        {/* Tipo de jornada — chips (solo tipos de trabajo) */}
         <View style={styles.fieldset}>
           <Text style={styles.fieldLabel}>Tipo de jornada</Text>
           <ScrollView
@@ -200,11 +252,14 @@ export default function NuevoRegistroScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tipoChipRow}
           >
-            {TIPOS_JORNADA.map((tipo) => (
+            {TIPOS_TRABAJO.map((tipo) => (
               <Pressable
                 key={tipo.value}
                 style={[styles.tipoChip, tipoJornada === tipo.value && styles.tipoChipActive]}
-                onPress={() => setTipoJornada(tipo.value)}
+                onPress={() => {
+                  setTipoJornada(tipo.value);
+                  setAusenciaOpen(false);
+                }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: tipoJornada === tipo.value }}
               >
@@ -214,6 +269,119 @@ export default function NuevoRegistroScreen() {
               </Pressable>
             ))}
           </ScrollView>
+        </View>
+
+        {/* ── Ausencias (sección colapsable) ── */}
+        <View style={styles.ausenciaGroup}>
+          <Pressable
+            style={styles.ausenciaHeader}
+            onPress={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setAusenciaOpen((v) => !v);
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: ausenciaOpen }}
+          >
+            <Text style={styles.fieldLabel}>Ausencias</Text>
+            {absenceSelected ? (
+              <View style={styles.ausenciaBadge}>
+                <Text style={styles.ausenciaBadgeText}>{tipoJornada}</Text>
+              </View>
+            ) : (
+              <Text style={styles.ausenciaChevron}>{ausenciaOpen ? '▲' : '▼'}</Text>
+            )}
+          </Pressable>
+
+          {ausenciaOpen && (
+            <View style={styles.ausenciaBody}>
+              {/* Tipo de ausencia */}
+              <Text style={styles.tramoLabel}>Tipo de ausencia</Text>
+              <View style={styles.chipRow}>
+                {TIPOS_AUSENCIA_OPTS.map((opt) => (
+                  <Pressable
+                    key={opt.value}
+                    style={[styles.chip, tipoJornada === opt.value && styles.chipSelected]}
+                    onPress={() => setTipoJornada(opt.value)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: tipoJornada === opt.value }}
+                  >
+                    <Text style={[styles.chipText, tipoJornada === opt.value && styles.chipTextSelected]}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {absenceSelected && (
+                <>
+                  {/* Fecha fin */}
+                  <Text style={[styles.tramoLabel, { marginTop: 14 }]}>Fecha de fin</Text>
+                  <View style={styles.dateNav}>
+                    <Pressable
+                      onPress={() => setAusenciaFechaFin((f) => offsetDateStr(f, -1))}
+                      style={[styles.dateNavBtn, ausenciaFechaFin <= fecha && styles.dateNavBtnDisabled]}
+                      disabled={ausenciaFechaFin <= fecha}
+                    >
+                      <Text style={[styles.dateNavBtnText, ausenciaFechaFin <= fecha && styles.dateNavBtnTextDisabled]}>
+                        ‹
+                      </Text>
+                    </Pressable>
+                    <Text style={styles.dateNavLabel}>{formatFecha(ausenciaFechaFin)}</Text>
+                    <Pressable
+                      onPress={() => setAusenciaFechaFin((f) => offsetDateStr(f, 1))}
+                      style={styles.dateNavBtn}
+                    >
+                      <Text style={styles.dateNavBtnText}>›</Text>
+                    </Pressable>
+                  </View>
+
+                  {ausenciaFechaFin > fecha && (
+                    <Text style={styles.ausenciaDaysInfo}>
+                      {`${getDatesInRange(fecha, ausenciaFechaFin).length} días en total`}
+                    </Text>
+                  )}
+
+                  {/* Horas parciales (solo Permiso/Enfermedad en día único) */}
+                  {needsAusenciaDesc(tipoJornada) && ausenciaFechaFin === fecha && (
+                    <>
+                      <Text style={[styles.tramoLabel, { marginTop: 14 }]}>
+                        Horas (vacío = jornada completa)
+                      </Text>
+                      <TextInput
+                        style={[styles.input, styles.inputCompact]}
+                        placeholder="p.ej. 2 o 2:30"
+                        placeholderTextColor={C.textFaint}
+                        value={ausenciaHorasInput}
+                        onChangeText={setAusenciaHorasInput}
+                        keyboardType="numbers-and-punctuation"
+                      />
+                    </>
+                  )}
+
+                  {/* Descripción (Permiso y Enfermedad) */}
+                  {needsAusenciaDesc(tipoJornada) && (
+                    <>
+                      <Text style={[styles.tramoLabel, { marginTop: 14 }]}>
+                        {tipoJornada === 'Enfermedad' ? 'Descripción / diagnóstico (opcional)' : 'Motivo del permiso (opcional)'}
+                      </Text>
+                      <TextInput
+                        style={[styles.input, styles.textArea]}
+                        placeholder={
+                          tipoJornada === 'Enfermedad'
+                            ? 'Diagnóstico, parte médico…'
+                            : 'Motivo del permiso…'
+                        }
+                        placeholderTextColor={C.textFaint}
+                        value={descripcion}
+                        onChangeText={setDescripcion}
+                        multiline
+                      />
+                    </>
+                  )}
+                </>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Cliente (solo para Cliente y Mixto) */}
@@ -226,8 +394,8 @@ export default function NuevoRegistroScreen() {
           </View>
         )}
 
-        {/* HORARIO: tramos normales (no Mixto) */}
-        {!isMixed && tipoJornada.length > 0 && (
+        {/* HORARIO: tramos normales (no Mixto, no ausencia) */}
+        {!isMixed && !absenceSelected && tipoJornada.length > 0 && (
           <View style={styles.fieldset}>
             <Text style={styles.fieldLabel}>Horario</Text>
 
@@ -284,7 +452,7 @@ export default function NuevoRegistroScreen() {
         )}
 
         {/* HORARIO: desglose para Mixto */}
-        {isMixed && (
+        {isMixed && !absenceSelected && (
           <View style={styles.fieldset}>
             <Text style={styles.fieldLabel}>Desglose de horas</Text>
 
@@ -318,8 +486,8 @@ export default function NuevoRegistroScreen() {
           </View>
         )}
 
-        {/* Dieta */}
-        {tipoJornada.length > 0 && (
+        {/* Dieta (solo jornadas de trabajo) */}
+        {tipoJornada.length > 0 && !absenceSelected && (
           <View style={styles.fieldset}>
             <Text style={styles.fieldLabel}>Dieta</Text>
             <View style={styles.chipRow}>
@@ -338,8 +506,8 @@ export default function NuevoRegistroScreen() {
           </View>
         )}
 
-        {/* Pernocta */}
-        {tipoJornada.length > 0 && (
+        {/* Pernocta (solo jornadas de trabajo) */}
+        {tipoJornada.length > 0 && !absenceSelected && (
           <View style={styles.fieldset}>
             <Text style={styles.fieldLabel}>Pernocta</Text>
             <View style={styles.chipRow}>
@@ -353,8 +521,8 @@ export default function NuevoRegistroScreen() {
           </View>
         )}
 
-        {/* Horas extras */}
-        {tipoJornada.length > 0 && (
+        {/* Horas extras (solo jornadas de trabajo) */}
+        {tipoJornada.length > 0 && !absenceSelected && (
           <View style={styles.fieldset}>
             <Text style={styles.fieldLabel}>Horas extras (+25 %)</Text>
             <TextInput
@@ -369,8 +537,8 @@ export default function NuevoRegistroScreen() {
           </View>
         )}
 
-        {/* Descripción */}
-        {tipoJornada.length > 0 && (
+        {/* Descripción (solo jornadas de trabajo — para ausencias va dentro del panel) */}
+        {tipoJornada.length > 0 && !absenceSelected && (
           <View style={styles.fieldset}>
             <Text style={styles.fieldLabel}>Notas (opcional)</Text>
             <TextInput
@@ -385,15 +553,15 @@ export default function NuevoRegistroScreen() {
         )}
 
         <Pressable
-          style={[styles.buttonPrimary, (!canSave || saving) && styles.buttonDisabled]}
+          style={[styles.buttonPrimary, (!effectiveCanSave || saving) && styles.buttonDisabled]}
           onPress={handleGuardar}
-          disabled={!canSave || saving}
+          disabled={!effectiveCanSave || saving}
           accessibilityRole="button"
-          accessibilityState={{ disabled: !canSave || saving }}
+          accessibilityState={{ disabled: !effectiveCanSave || saving }}
         >
           <Text style={styles.buttonPrimaryText}>{saving ? 'Guardando…' : 'Guardar'}</Text>
         </Pressable>
-        {tipoJornada ? (
+        {tipoJornada && !absenceSelected ? (
           <Pressable style={styles.buttonSecondary} onPress={handleSaveTemplate}>
             <Text style={styles.buttonSecondaryText}>Guardar como plantilla</Text>
           </Pressable>
@@ -416,8 +584,6 @@ function makeStyles(C: ThemeColors) {
       padding: 24, paddingTop: 16, gap: 4, paddingBottom: 40,
       width: '100%', maxWidth: 720, alignSelf: 'center',
     },
-    title: { fontSize: 30, fontWeight: '800', color: C.text },
-    subtitle: { marginTop: 4, marginBottom: 8, color: C.textSecondary, fontSize: 15, lineHeight: 22 },
     required: { color: Colors.brand },
     fieldset: { marginTop: 16, gap: 10 },
     fieldLabel: { fontSize: 14, fontWeight: '700', color: Colors.brand },
@@ -472,6 +638,34 @@ function makeStyles(C: ThemeColors) {
     chipSelected: { backgroundColor: Colors.brand, borderColor: Colors.brand },
     chipText: { fontSize: 14, fontWeight: '600', color: C.text },
     chipTextSelected: { color: '#ffffff' },
+    // ── Ausencias ──
+    ausenciaGroup: {
+      marginTop: 16,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: C.border,
+      overflow: 'hidden',
+    },
+    ausenciaHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingVertical: 14, paddingHorizontal: 16,
+      backgroundColor: C.card,
+    },
+    ausenciaChevron: { fontSize: 12, color: C.textMuted, fontWeight: '700' },
+    ausenciaBadge: {
+      backgroundColor: `${Colors.brand}20`, borderRadius: 8,
+      paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: `${Colors.brand}40`,
+    },
+    ausenciaBadgeText: { fontSize: 12, fontWeight: '700', color: Colors.brand },
+    ausenciaBody: {
+      padding: 16, gap: 8,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border,
+      backgroundColor: C.background,
+    },
+    ausenciaDaysInfo: {
+      fontSize: 13, fontWeight: '700', color: Colors.brand,
+      marginTop: 4, textAlign: 'center',
+    },
     buttonPrimary: {
       marginTop: 28, backgroundColor: Colors.brand,
       borderRadius: 16, paddingVertical: 16, alignItems: 'center',

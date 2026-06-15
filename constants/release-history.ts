@@ -7,6 +7,18 @@ export type ReleaseEntry = {
 
 export const RELEASE_HISTORY: ReleaseEntry[] = [
   {
+    version: '1.3.0',
+    date: '15 de junio de 2026',
+    title: 'Ausencias integradas y rediseño del panel principal',
+    highlights: [
+      'Las ausencias (vacaciones, permiso, enfermedad y festivo) se registran desde una sección desplegable dedicada, separada de los tipos de jornada.',
+      'Soporte para ausencias de varios días: selección de fecha inicio y fin con contador de días.',
+      'Permiso y enfermedad admiten horas parciales (para ausencias de solo unas horas) y campo de descripción.',
+      'El panel principal estrena diseño con fichaje rápido en tarjeta, separadores de sección y lista de jornadas compacta con fecha visible.',
+      'La vista y edición del detalle de una ausencia ya no muestra campos de horario, dieta ni pernocta irrelevantes.',
+    ],
+  },
+  {
     version: '1.2.0',
     date: '12 de junio de 2026',
     title: 'Planificación, cierre mensual e integridad reforzada',
