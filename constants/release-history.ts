@@ -7,6 +7,18 @@ export type ReleaseEntry = {
 
 export const RELEASE_HISTORY: ReleaseEntry[] = [
   {
+    version: '1.4.0',
+    date: '15 de junio de 2026',
+    title: 'Pantalla de ausencias independiente y rediseño de interfaz',
+    highlights: [
+      'Las ausencias tienen pantalla propia accesible desde el menú principal (botón S), con calendario mensual multi-selección para días sueltos o consecutivos, incluyendo fechas futuras.',
+      'Permiso y enfermedad permiten indicar horas parciales y añadir descripción opcional.',
+      'El tipo de jornada en "Nueva jornada" es ahora un desplegable compacto en lugar de chips horizontales.',
+      'Rediseño general: tarjetas contenidas, separadores de línea fina, etiquetas de sección en mayúsculas y tipografía más clara en todas las pantallas.',
+      'El menú de navegación incluye separadores visuales entre grupos de opciones.',
+    ],
+  },
+  {
     version: '1.3.0',
     date: '15 de junio de 2026',
     title: 'Ausencias integradas y rediseño del panel principal',

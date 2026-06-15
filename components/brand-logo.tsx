@@ -14,6 +14,7 @@ const ROUTE_LABELS: Record<string, string> = {
   index:              'Inicio',
   registros:          'Registros',
   nuevo:              'Nueva jornada',
+  ausencias:          'Ausencias',
   'registro-mensual': 'Mensual',
   'registro-detalle': 'Jornada',
   'historial-versiones': 'Versiones',
@@ -54,9 +55,10 @@ export function BrandLogo({ screenTitle }: BrandLogoProps) {
     );
   };
 
-  const handleNavigate = (path: '/' | '/nuevo' | '/registros' | '/registro-mensual' | '/ajustes') => {
+  const handleNavigate = (path: '/' | '/nuevo' | '/ausencias' | '/registros' | '/registro-mensual' | '/ajustes') => {
     closeMenu();
-    router.replace(path);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    router.replace(path as any);
   };
 
   return (
@@ -134,12 +136,17 @@ export function BrandLogo({ screenTitle }: BrandLogoProps) {
           <Pressable style={styles.menuItem} onPress={() => handleNavigate('/nuevo')} accessibilityRole="button">
             <Text style={styles.menuItemText}>Nueva jornada</Text>
           </Pressable>
+          <Pressable style={styles.menuItem} onPress={() => handleNavigate('/ausencias')} accessibilityRole="button">
+            <Text style={styles.menuItemText}>Ausencias</Text>
+          </Pressable>
+          <View style={styles.menuDivider} />
           <Pressable style={styles.menuItem} onPress={() => handleNavigate('/registros')} accessibilityRole="button">
             <Text style={styles.menuItemText}>Registros</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={() => handleNavigate('/registro-mensual')} accessibilityRole="button">
             <Text style={styles.menuItemText}>Registro mensual</Text>
           </Pressable>
+          <View style={styles.menuDivider} />
           <Pressable style={styles.menuItem} onPress={() => handleNavigate('/ajustes')} accessibilityRole="button">
             <Text style={styles.menuItemText}>Ajustes</Text>
           </Pressable>
@@ -185,13 +192,19 @@ function makeStyles(C: ThemeColors) {
 
     // ── Menú desplegable ──
     menu: {
-      position: 'absolute', top: 60, left: 0, zIndex: 100, width: 210,
+      position: 'absolute', top: 60, left: 0, zIndex: 100, width: 220,
       backgroundColor: C.card, borderRadius: 18,
-      paddingVertical: 10, paddingHorizontal: 14,
+      paddingVertical: 8, paddingHorizontal: 16,
       shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 20,
       shadowOffset: { width: 0, height: 12 }, elevation: 8,
+      borderWidth: 1, borderColor: C.border,
     },
     menuItem: { paddingVertical: 13 },
-    menuItemText: { fontSize: 15, color: C.text, fontWeight: '700' },
+    menuItemText: { fontSize: 15, color: C.text, fontWeight: '600' },
+    menuDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: C.border,
+      marginVertical: 4,
+    },
   });
 }

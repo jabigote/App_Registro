@@ -6,6 +6,13 @@ La versión debe actualizarse conjuntamente en `app.json`, `package.json` y
 `constants/release-history.ts`. La prueba `version-history.test.ts` comprueba que las tres fuentes
 permanezcan sincronizadas.
 
+## 1.4.0 — 15 de junio de 2026
+
+- Nueva pantalla "Ausencias" accesible desde el menú desplegable (botón S), con calendario mensual para seleccionar días sueltos, incluyendo fechas futuras.
+- Permiso y enfermedad admiten horas parciales y descripción opcional; vacaciones y festivos registran 8h/día automáticamente.
+- El tipo de jornada en "Nueva jornada" pasa a ser un desplegable compacto, eliminando los chips horizontales.
+- Rediseño general con tarjetas contenidas, separadores de línea fina, etiquetas de sección en mayúsculas y menú de navegación con separadores visuales.
+
 ## 1.3.0 — 15 de junio de 2026
 
 - Ausencias (vacaciones, permiso, enfermedad, festivo) movidas a una sección desplegable propia dentro del formulario de nueva jornada.
