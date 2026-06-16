@@ -2,18 +2,21 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Pressable, SafeAreaView, ScrollView, StyleSheet,
+  Alert, Pressable, SafeAreaView, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
+import { useAppSettings } from '@/contexts/app-settings-context';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import { TIPOS_AUSENCIA_OPTS, needsAusenciaDesc } from '@/hooks/useJornadaForm';
+import { buildAbsenceRegistros, type AbsenceType } from '@/src/services/registro/builders';
+import { findDateConflicts, isDateLocked } from '@/src/services/registro/conflicts';
 import { todayDateStr } from '@/utils/date';
-import { fmtDuration, parseHoursInput } from '@/utils/time';
+import { parseHoursInput } from '@/utils/time';
 
 // ── Calendario ────────────────────────────────────────────────────────────────
 
@@ -46,7 +49,8 @@ function buildCalendarCells(year: number, month: number): (number | null)[] {
 
 export default function AusenciasScreen() {
   const router = useRouter();
-  const { addRegistros } = useRegistro();
+  const { registros, addRegistros } = useRegistro();
+  const { lockedMonths } = useAppSettings();
   const { toast, showToast, dismissToast } = useToast();
   const [saving, setSaving] = useState(false);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -98,26 +102,26 @@ export default function AusenciasScreen() {
 
   const horasMin = soloHoras ? (parseHoursInput(horasInput) ?? null) : 480;
   const horasError = soloHoras && horasInput.trim() !== '' && parseHoursInput(horasInput) === null;
+  const selectedDateList = Array.from(selectedDates).sort();
+  const lockedSelectedDates = selectedDateList.filter((date) => isDateLocked(date, lockedMonths));
   const canSave =
     !saving &&
     tipoAusencia.length > 0 &&
     selectedDates.size > 0 &&
+    lockedSelectedDates.length === 0 &&
     (!soloHoras || (horasMin !== null));
 
-  const handleSave = async () => {
+  const persistAbsences = async (dates: string[]) => {
     if (!canSave || horasMin === null) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSaving(true);
     try {
-      const dates = Array.from(selectedDates).sort();
-      await addRegistros(dates.map((d) => ({
-          titulo:      tipoAusencia,
-          fecha:       d,
-          inicio:      '',
-          fin:         '',
-          duracion:    fmtDuration(horasMin),
-          descripcion: descripcion.trim(),
-      })));
+      await addRegistros(buildAbsenceRegistros(
+        dates,
+        tipoAusencia as AbsenceType,
+        horasMin,
+        descripcion,
+      ));
       const n = dates.length;
       showToast(n > 1 ? `${n} ausencias registradas` : 'Ausencia registrada');
       navTimerRef.current = setTimeout(() => router.replace('/registros'), 1300);
@@ -126,6 +130,24 @@ export default function AusenciasScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = () => {
+    if (!canSave || horasMin === null) return;
+    const conflicts = findDateConflicts(registros, selectedDateList);
+    if (conflicts.length === 0) {
+      void persistAbsences(selectedDateList);
+      return;
+    }
+    const conflictDays = [...new Set(conflicts.map((registro) => registro.fecha ?? registro.createdAt.slice(0, 10)))];
+    Alert.alert(
+      'Hay días con registros',
+      `${conflictDays.length} día${conflictDays.length === 1 ? '' : 's'} seleccionado${conflictDays.length === 1 ? '' : 's'} ya contiene registros. ¿Guardar las ausencias igualmente?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Guardar igualmente', onPress: () => { void persistAbsences(selectedDateList); } },
+      ],
+    );
   };
 
   // Construir grid del mes visible
@@ -145,6 +167,7 @@ export default function AusenciasScreen() {
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        contentInsetAdjustmentBehavior="automatic"
       >
         {/* ── Tipo de ausencia ── */}
         <View style={styles.card}>
@@ -304,12 +327,22 @@ export default function AusenciasScreen() {
           </View>
         )}
 
+        {lockedSelectedDates.length > 0 ? (
+          <View style={styles.warningCard}>
+            <Text style={styles.warningText}>
+              Hay {lockedSelectedDates.length} fecha{lockedSelectedDates.length === 1 ? '' : 's'} de meses cerrados. Ábrelos desde Registro mensual.
+            </Text>
+          </View>
+        ) : null}
+
         {/* ── Botón guardar ── */}
         <Pressable
           style={[styles.btnPrimary, !canSave && styles.btnDisabled]}
           onPress={handleSave}
           disabled={!canSave}
           accessibilityRole="button"
+          accessibilityLabel="Registrar ausencias seleccionadas"
+          accessibilityState={{ disabled: !canSave }}
         >
           <Text style={styles.btnPrimaryText}>
             {saving
@@ -357,7 +390,8 @@ function makeStyles(C: ThemeColors) {
     // ── Tipo chips ──
     chipArea: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 14 },
     chip: {
-      paddingVertical: 9, paddingHorizontal: 18, borderRadius: 20,
+      minHeight: 44, paddingVertical: 9, paddingHorizontal: 18, borderRadius: 20,
+      justifyContent: 'center',
       backgroundColor: C.background, borderWidth: 1.5, borderColor: C.border,
     },
     chipActive: { backgroundColor: Colors.brand, borderColor: Colors.brand },
@@ -369,13 +403,16 @@ function makeStyles(C: ThemeColors) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingHorizontal: 8, paddingVertical: 12,
     },
-    monthNavBtn: { paddingHorizontal: 10, paddingVertical: 6 },
+    monthNavBtn: {
+      minWidth: 44, minHeight: 44, paddingHorizontal: 10, paddingVertical: 6,
+      justifyContent: 'center', alignItems: 'center',
+    },
     monthNavArrow: { fontSize: 28, color: Colors.brand, fontWeight: '500', lineHeight: 32 },
     monthLabel: { fontSize: 16, fontWeight: '700', color: C.text, flex: 1, textAlign: 'center' },
 
     calendarRow: { flexDirection: 'row', paddingHorizontal: 8 },
     calCell: {
-      flex: 1, height: 42,
+      flex: 1, height: 44,
       justifyContent: 'center', alignItems: 'center',
       borderRadius: 21, marginVertical: 1, marginHorizontal: 1,
     },
@@ -391,7 +428,7 @@ function makeStyles(C: ThemeColors) {
       paddingHorizontal: 16, paddingVertical: 12,
     },
     selectedInfoText: { fontSize: 13, fontWeight: '700', color: Colors.brand },
-    clearBtn: { paddingVertical: 4, paddingHorizontal: 10 },
+    clearBtn: { minHeight: 44, paddingVertical: 4, paddingHorizontal: 10, justifyContent: 'center' },
     clearBtnText: { fontSize: 13, color: C.textMuted, fontWeight: '600' },
 
     // ── Opciones ──
@@ -415,6 +452,11 @@ function makeStyles(C: ThemeColors) {
     inputError: { borderColor: '#f59e0b' },
     textArea: { minHeight: 90, textAlignVertical: 'top' },
     fieldError: { fontSize: 12, color: '#f59e0b', fontWeight: '600' },
+    warningCard: {
+      backgroundColor: '#fef3c7', borderRadius: 14, padding: 14,
+      borderWidth: 1, borderColor: '#f59e0b',
+    },
+    warningText: { color: '#92400e', fontSize: 13, lineHeight: 19, fontWeight: '600' },
 
     // ── Botón ──
     btnPrimary: {

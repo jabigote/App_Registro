@@ -7,6 +7,19 @@ export type ReleaseEntry = {
 
 export const RELEASE_HISTORY: ReleaseEntry[] = [
   {
+    version: '1.5.0',
+    date: '15 de junio de 2026',
+    title: 'Navegación nativa y prevención de errores',
+    highlights: [
+      'Inicio, Registros, Mensual y Ajustes usan una barra de pestañas nativa más rápida y accesible.',
+      'Nueva jornada y edición incorporan selector de fecha nativo y muestran claramente los meses cerrados.',
+      'La app avisa antes de guardar jornadas o ausencias en fechas que ya contienen registros.',
+      'El panel principal separa horas trabajadas, ausencias y horas extras del mes actual.',
+      'Los meses cerrados se identifican antes de editar y requieren confirmación para volver a abrirse.',
+      'Se ampliaron etiquetas de accesibilidad, áreas táctiles y pruebas automatizadas de los nuevos flujos.',
+    ],
+  },
+  {
     version: '1.4.0',
     date: '15 de junio de 2026',
     title: 'Pantalla de ausencias independiente y rediseño de interfaz',

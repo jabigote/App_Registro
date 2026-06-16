@@ -2,7 +2,7 @@
   "expo": {
     "name": "mi-app-ios",
     "slug": "mi-app-ios",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "miappios",
@@ -41,7 +41,8 @@
       ],
       "expo-asset",
       "expo-notifications",
-      "expo-font"
+      "expo-font",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -6,9 +6,11 @@ import { Alert, Pressable, SafeAreaView, SectionList, ScrollView, StyleSheet, Te
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
+import { useAppSettings } from '@/contexts/app-settings-context';
 import { type Registro, useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import { formatFecha } from '@/utils/date';
+import { isDateLocked } from '@/src/services/registro/conflicts';
 
 const TIPOS_FILTRO = [
   'Oficina', 'Cliente', 'Teletrabajo', 'Mixto', 'Casa',
@@ -38,6 +40,7 @@ type Section = { title: string; data: Registro[] };
 
 export default function RegistrosScreen() {
   const { registros, loading, deleteRegistro, mergeRegistros } = useRegistro();
+  const { lockedMonths } = useAppSettings();
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState<string | null>(null);
@@ -76,12 +79,21 @@ export default function RegistrosScreen() {
   }, [filteredRegistros]);
 
   const handleEdit = (id: string) => {
+    const registro = registros.find((item) => item.id === id);
+    if (registro && isDateLocked(getRegistroDateStr(registro), lockedMonths)) {
+      showToast('Este mes está cerrado. Ábrelo desde Registro mensual.', 'error');
+      return;
+    }
     swipeableRefs.current.get(id)?.close();
     router.push({ pathname: '/registro-detalle', params: { id, editMode: '1' } });
   };
 
   const handleDelete = (id: string) => {
     const deleted = registros.find((registro) => registro.id === id);
+    if (deleted && isDateLocked(getRegistroDateStr(deleted), lockedMonths)) {
+      showToast('Este mes está cerrado. Ábrelo desde Registro mensual.', 'error');
+      return;
+    }
     swipeableRefs.current.get(id)?.close();
     Alert.alert('Eliminar jornada', '¿Seguro que quieres eliminar esta jornada?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -118,23 +130,25 @@ export default function RegistrosScreen() {
   );
 
   const renderItem = ({ item: registro }: { item: Registro }) => {
+    const locked = isDateLocked(getRegistroDateStr(registro), lockedMonths);
     const dietaLabel =
       registro.dieta === 'media' ? '½ Dieta' :
       registro.dieta === 'completa' ? 'Dieta completa' : null;
     const extras = registro.horasExtras && registro.horasExtras > 0
       ? `${registro.horasExtras}h extra` : null;
-    const tags = [dietaLabel, registro.pernocta ? 'Pernocta' : null, extras].filter(Boolean);
+    const tags = [locked ? 'Mes cerrado' : null, dietaLabel, registro.pernocta ? 'Pernocta' : null, extras].filter(Boolean);
 
     return (
       <Swipeable
+        enabled={!locked}
         ref={(ref) => { swipeableRefs.current.set(registro.id, ref); }}
         renderLeftActions={() => renderLeftActions(registro.id)}
         renderRightActions={() => renderRightActions(registro.id)}
         overshootLeft={false}
         overshootRight={false}
-        friction={2}
-        leftThreshold={40}
-        rightThreshold={40}
+        friction={1.5}
+        leftThreshold={30}
+        rightThreshold={30}
       >
         <Pressable
           style={styles.recordCard}
@@ -262,6 +276,7 @@ export default function RegistrosScreen() {
           contentContainerStyle={styles.page}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled
+          contentInsetAdjustmentBehavior="automatic"
           ListHeaderComponent={listHeader}
           ListEmptyComponent={listEmpty}
           renderItem={renderItem}
@@ -318,7 +333,8 @@ function makeStyles(C: ThemeColors) {
     filterScroll: { marginVertical: 2 },
     filterRow: { flexDirection: 'row', gap: 7, paddingVertical: 2 },
     filterChip: {
-      paddingHorizontal: 13, paddingVertical: 7, borderRadius: 18,
+      minHeight: 44, paddingHorizontal: 13, paddingVertical: 7, borderRadius: 18,
+      justifyContent: 'center',
       backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
     },
     filterChipActive: { backgroundColor: Colors.brand, borderColor: Colors.brand },
@@ -328,14 +344,14 @@ function makeStyles(C: ThemeColors) {
     // Swipe actions
     swipeEdit: {
       backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center',
-      paddingHorizontal: 20, marginTop: 10,
-      borderTopRightRadius: 16, borderBottomRightRadius: 16,
+      minWidth: 88, paddingHorizontal: 20, marginTop: 10,
+      borderRadius: 18,
     },
     swipeEditText: { color: '#fff', fontWeight: '700', fontSize: 14 },
     swipeDelete: {
       backgroundColor: '#dc2626', justifyContent: 'center', alignItems: 'center',
-      paddingHorizontal: 20, marginTop: 10,
-      borderTopLeftRadius: 16, borderBottomLeftRadius: 16,
+      minWidth: 88, paddingHorizontal: 20, marginTop: 10,
+      borderRadius: 18,
     },
     swipeDeleteText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 

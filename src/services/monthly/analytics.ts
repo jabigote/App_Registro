@@ -1,6 +1,8 @@
 import type { Registro } from '@/src/domain/registro';
 import { durationToMinutes, fmtDuration } from '@/utils/time';
 
+const ABSENCE_TYPES = new Set(['Vacaciones', 'Permiso', 'Enfermedad', 'Festivo']);
+
 export function getRegistroDate(registro: Registro): Date {
   if (registro.fecha) return new Date(`${registro.fecha}T12:00:00`);
   return new Date(registro.createdAt);
@@ -23,6 +25,16 @@ export function totalMinutesFor(registros: Registro[]): number {
 
 export function totalHoursLabel(registros: Registro[]): string {
   return fmtDuration(totalMinutesFor(registros));
+}
+
+export function buildMonthlyBreakdown(registros: Registro[]) {
+  return registros.reduce((summary, registro) => {
+    const minutes = durationToMinutes(registro.duracion);
+    if (ABSENCE_TYPES.has(registro.titulo)) summary.absenceMinutes += minutes;
+    else summary.workedMinutes += minutes;
+    summary.overtimeMinutes += Math.round(Math.max(0, registro.horasExtras ?? 0) * 60);
+    return summary;
+  }, { workedMinutes: 0, absenceMinutes: 0, overtimeMinutes: 0 });
 }
 
 export function getWeekStart(dateStr: string): string {

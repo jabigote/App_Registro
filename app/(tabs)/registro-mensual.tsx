@@ -175,7 +175,14 @@ export default function RegistroMensualScreen() {
 
   const handleMonthLock = () => {
     if (isLocked) {
-      toggleMonthLock(monthKey);
+      Alert.alert(
+        'Abrir mes',
+        `Se volverán a permitir cambios en ${MESES[month]} ${year}.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Abrir mes', onPress: () => toggleMonthLock(monthKey) },
+        ],
+      );
       return;
     }
     Alert.alert(
@@ -193,11 +200,17 @@ export default function RegistroMensualScreen() {
       <View style={styles.header}>
         <BrandLogo screenTitle="Registro mensual" />
       </View>
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} contentInsetAdjustmentBehavior="automatic">
 
         {/* Selector de mes */}
         <View style={styles.monthNav}>
-          <Pressable style={styles.monthBtn} onPress={prevMonth} hitSlop={8}>
+          <Pressable
+            style={styles.monthBtn}
+            onPress={prevMonth}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Mes anterior"
+          >
             <Text style={styles.monthBtnText}>‹</Text>
           </Pressable>
           <Text style={styles.monthLabel}>{MESES[month]} {year}</Text>
@@ -206,6 +219,8 @@ export default function RegistroMensualScreen() {
             onPress={nextMonth}
             disabled={isCurrentMonth}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Mes siguiente"
           >
             <Text style={[styles.monthBtnText, isCurrentMonth && styles.monthBtnTextDisabled]}>›</Text>
           </Pressable>
@@ -242,6 +257,8 @@ export default function RegistroMensualScreen() {
             style={[styles.lockButton, isLocked && styles.lockButtonActive]}
             onPress={handleMonthLock}
             accessibilityRole="button"
+            accessibilityLabel={isLocked ? 'Abrir mes cerrado' : 'Cerrar mes para impedir cambios'}
+            accessibilityState={{ selected: isLocked }}
           >
             <Text style={[styles.lockButtonText, isLocked && styles.lockButtonTextActive]}>
               {isLocked ? 'Mes cerrado' : 'Cerrar mes'}
@@ -532,7 +549,7 @@ function makeStyles(C: ThemeColors) {
       paddingVertical: 14, paddingHorizontal: 20,
       borderWidth: 1, borderColor: C.border,
     },
-    monthBtn: { padding: 4 },
+    monthBtn: { minWidth: 44, minHeight: 44, padding: 4, justifyContent: 'center', alignItems: 'center' },
     monthBtnDisabled: { opacity: 0.25 },
     monthBtnText: { fontSize: 28, color: Colors.brand, fontWeight: '700', lineHeight: 30 },
     monthBtnTextDisabled: { color: C.textFaint },

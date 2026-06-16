@@ -6,6 +6,15 @@ La versión debe actualizarse conjuntamente en `app.json`, `package.json` y
 `constants/release-history.ts`. La prueba `version-history.test.ts` comprueba que las tres fuentes
 permanezcan sincronizadas.
 
+## 1.5.0 — 15 de junio de 2026
+
+- Navegación principal mediante pestañas nativas para Inicio, Registros, Mensual y Ajustes.
+- Selector de fecha nativo en creación y edición de jornadas.
+- Avisos antes de guardar registros duplicados en una misma fecha.
+- Panel principal con desglose de horas trabajadas, ausencias y horas extras.
+- Estados visibles y confirmaciones para meses cerrados.
+- Mejoras de accesibilidad y pruebas automatizadas para conflictos y ausencias múltiples.
+
 ## 1.4.0 — 15 de junio de 2026
 
 - Nueva pantalla "Ausencias" accesible desde el menú desplegable (botón S), con calendario mensual para seleccionar días sueltos, incluyendo fechas futuras.

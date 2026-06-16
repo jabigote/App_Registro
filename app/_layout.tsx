@@ -43,7 +43,14 @@ function AppContent() {
                 headerShown: false,
                 contentStyle: { backgroundColor: Colors[effectiveScheme].background },
               }}
-            />
+            >
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="login" />
+              <Stack.Screen name="nuevo" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="ausencias" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="registro-detalle" />
+              <Stack.Screen name="historial-versiones" />
+            </Stack>
           </RegistroProvider>
         </AppSettingsProvider>
       </AuthProvider>

@@ -1,13 +1,17 @@
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
-import { isRegistro, mergeUniqueRegistros, type QuickEntry, type Registro } from '@/src/domain/registro';
+import {
+  isRegistro,
+  mergeUniqueRegistros,
+  type NewRegistro,
+  type QuickEntry,
+  type Registro,
+} from '@/src/domain/registro';
 import { loadRegistroData, saveQuickEntryValue, saveRegistros } from '@/src/repositories/registro-repository';
 import { cancelFichajeReminder, scheduleFichajeReminder } from '@/utils/notifications';
 import { useAppSettings } from '@/contexts/app-settings-context';
 
 export type { Dieta, QuickEntry, Registro } from '@/src/domain/registro';
-
-type NewRegistro = Omit<Registro, 'id' | 'createdAt'>;
 
 type RegistroContextValue = {
   registros: Registro[];

@@ -2,6 +2,7 @@ import type { Registro } from '@/src/domain/registro';
 import {
   buildTypeSummary,
   buildWeeklySummary,
+  buildMonthlyBreakdown,
   filterRegistrosByMonth,
   totalHoursLabel,
   totalMinutesFor,
@@ -41,5 +42,16 @@ describe('monthly analytics', () => {
   test('filters records by calendar month', () => {
     expect(filterRegistrosByMonth(records, 2026, 5)).toEqual(records);
     expect(filterRegistrosByMonth(records, 2026, 4)).toEqual([]);
+  });
+
+  test('separates worked, absence and overtime minutes', () => {
+    expect(buildMonthlyBreakdown([
+      { ...records[0], horasExtras: 1 },
+      { ...records[1], titulo: 'Vacaciones' },
+    ])).toEqual({
+      workedMinutes: 240,
+      absenceMinutes: 270,
+      overtimeMinutes: 60,
+    });
   });
 });

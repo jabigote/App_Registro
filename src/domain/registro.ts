@@ -35,6 +35,8 @@ export type Registro = {
   externalHours?: string;
 };
 
+export type NewRegistro = Omit<Registro, 'id' | 'createdAt'>;
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const DURATION_RE = /^\d+h(?: \d{1,2}m)?$/;

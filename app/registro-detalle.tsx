@@ -4,8 +4,10 @@ import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput
 
 import { BrandLogo } from '@/components/brand-logo';
 import { ClienteSearchInput } from '@/components/cliente-search-input';
+import { DatePickerField } from '../components/date-picker-field';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
+import { useAppSettings } from '@/contexts/app-settings-context';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import {
@@ -18,6 +20,7 @@ import {
   needsCliente,
   useJornadaForm,
 } from '@/hooks/useJornadaForm';
+import { findDateConflicts, isDateLocked } from '@/src/services/registro/conflicts';
 import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
 import { durationToMinutes, fmtDuration, parseHoursInput, parseTime } from '@/utils/time';
 
@@ -25,6 +28,7 @@ export default function RegistroDetalleScreen() {
   const { id, editMode: editParam } = useLocalSearchParams<{ id: string; editMode?: string }>();
   const router = useRouter();
   const { registros, addRegistro, updateRegistro, deleteRegistro } = useRegistro();
+  const { lockedMonths } = useAppSettings();
   const { toast, showToast, dismissToast } = useToast();
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -34,6 +38,8 @@ export default function RegistroDetalleScreen() {
   const [saving, setSaving] = useState(false);
 
   const registro = registros.find((r) => r.id === id);
+  const registroDateValue = registro?.fecha ?? registro?.createdAt.slice(0, 10) ?? todayDateStr();
+  const currentMonthLocked = isDateLocked(registroDateValue, lockedMonths);
   const initialAbsenceMinutes = registro ? durationToMinutes(registro.duracion) : 480;
   const [absenceHours, setAbsenceHours] = useState(
     initialAbsenceMinutes % 60 === 0
@@ -43,8 +49,9 @@ export default function RegistroDetalleScreen() {
 
   const today = todayDateStr();
   const [fecha, setFecha] = useState(
-    registro?.fecha ?? registro?.createdAt?.slice(0, 10) ?? today
+    registroDateValue
   );
+  const selectedMonthLocked = isDateLocked(fecha, lockedMonths);
 
   const {
     tipoJornada, setTipoJornada,
@@ -141,8 +148,22 @@ export default function RegistroDetalleScreen() {
     }
   };
 
-  const handleGuardar = async () => {
-    if (!effectiveCanSave || saving) return;
+  const handleGuardar = async (skipConflictCheck = false) => {
+    if (!effectiveCanSave || saving || currentMonthLocked || selectedMonthLocked) return;
+    if (!skipConflictCheck) {
+      const conflicts = findDateConflicts(registros, [fecha], registro.id);
+      if (conflicts.length > 0) {
+        Alert.alert(
+          'Ya hay registros ese día',
+          `El ${fecha} contiene ${conflicts.length} registro${conflicts.length === 1 ? '' : 's'}. ¿Guardar los cambios igualmente?`,
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Guardar igualmente', onPress: () => { void handleGuardar(true); } },
+          ],
+        );
+        return;
+      }
+    }
     setSaving(true);
     try {
       if (isAbsence(tipoJornada)) {
@@ -213,7 +234,7 @@ export default function RegistroDetalleScreen() {
       setEditMode(false);
       showToast('Cambios guardados');
     } catch {
-      showToast('Error al guardar. Inténtalo de nuevo.');
+      showToast('Error al guardar. Inténtalo de nuevo.', 'error');
     } finally {
       setSaving(false);
     }
@@ -244,7 +265,7 @@ export default function RegistroDetalleScreen() {
           >
             <Text style={styles.headerCancelText}>Cancelar</Text>
           </Pressable>
-        ) : (
+        ) : !currentMonthLocked ? (
           <Pressable
             style={styles.headerActionBtn}
             onPress={() => setMenuVisible((v) => !v)}
@@ -252,11 +273,11 @@ export default function RegistroDetalleScreen() {
           >
             <Text style={styles.headerDotsText}>···</Text>
           </Pressable>
-        )}
+        ) : null}
       </View>
 
       {/* Menú flotante editar/eliminar — fuera del header para evitar clipping */}
-      {menuVisible && (
+      {menuVisible && !currentMonthLocked && (
         <View style={styles.floatingMenu}>
           <Pressable
             style={styles.floatingMenuItem}
@@ -280,10 +301,16 @@ export default function RegistroDetalleScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={() => setMenuVisible(false)}
+        contentInsetAdjustmentBehavior="automatic"
       >
         {/* ── VIEW MODE ── */}
         {!editMode && (
           <>
+            {currentMonthLocked ? (
+              <View style={styles.lockBanner}>
+                <Text style={styles.lockBannerText}>Este mes está cerrado. Ábrelo desde Registro mensual para editar o borrar.</Text>
+              </View>
+            ) : null}
             <View style={styles.infoCard}>
               <Row label="Fecha" value={formatFecha(registroFecha)} />
               {registro.cliente ? <Row label="Cliente" value={registro.cliente} /> : null}
@@ -322,19 +349,15 @@ export default function RegistroDetalleScreen() {
             {/* Fecha */}
             <View style={styles.fieldset}>
               <Text style={styles.fieldLabel}>Fecha de la jornada</Text>
-              <View style={styles.dateNav}>
-                <Pressable onPress={() => setFecha((f) => offsetDateStr(f, -1))} style={styles.dateNavBtn}>
-                  <Text style={styles.dateNavBtnText}>‹</Text>
-                </Pressable>
-                <Text style={styles.dateNavLabel}>{formatFecha(fecha)}</Text>
-                <Pressable
-                  onPress={() => setFecha((f) => offsetDateStr(f, 1))}
-                  style={[styles.dateNavBtn, fecha >= today && styles.dateNavBtnDisabled]}
-                  disabled={fecha >= today}
-                >
-                  <Text style={[styles.dateNavBtnText, fecha >= today && styles.dateNavBtnTextDisabled]}>›</Text>
-                </Pressable>
-              </View>
+              <DatePickerField
+                value={fecha}
+                onChange={setFecha}
+                maximumDate={new Date(`${today}T12:00:00`)}
+                accessibilityLabel="Fecha de la jornada"
+              />
+              {selectedMonthLocked ? (
+                <Text style={styles.lockWarning}>La fecha seleccionada pertenece a un mes cerrado.</Text>
+              ) : null}
             </View>
 
             {/* Tipo de jornada */}
@@ -552,9 +575,12 @@ export default function RegistroDetalleScreen() {
             </View>
 
             <Pressable
-              style={[styles.buttonPrimary, (!effectiveCanSave || saving) && styles.buttonDisabled]}
-              onPress={handleGuardar}
-              disabled={!effectiveCanSave || saving}
+              style={[styles.buttonPrimary, (!effectiveCanSave || saving || selectedMonthLocked) && styles.buttonDisabled]}
+              onPress={() => { void handleGuardar(); }}
+              disabled={!effectiveCanSave || saving || selectedMonthLocked}
+              accessibilityRole="button"
+              accessibilityLabel="Guardar cambios de jornada"
+              accessibilityState={{ disabled: !effectiveCanSave || saving || selectedMonthLocked }}
             >
               <Text style={styles.buttonPrimaryText}>{saving ? 'Guardando…' : 'Guardar cambios'}</Text>
             </Pressable>
@@ -612,16 +638,12 @@ function makeStyles(C: ThemeColors) {
     fieldLabel: { fontSize: 14, fontWeight: '700', color: Colors.brand },
     required: { color: Colors.brand },
     tramoLabel: { fontSize: 13, fontWeight: '600', color: C.textMuted },
-    dateNav: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.border,
-      paddingHorizontal: 4, paddingVertical: 2,
+    lockBanner: {
+      backgroundColor: '#fef3c7', borderRadius: 16, borderWidth: 1, borderColor: '#f59e0b',
+      padding: 14, marginBottom: 12,
     },
-    dateNavBtn: { padding: 12, borderRadius: 12 },
-    dateNavBtnDisabled: { opacity: 0.25 },
-    dateNavBtnText: { fontSize: 26, color: Colors.brand, fontWeight: '700', lineHeight: 30 },
-    dateNavBtnTextDisabled: { color: C.textFaint },
-    dateNavLabel: { fontSize: 16, fontWeight: '700', color: C.text, flex: 1, textAlign: 'center' },
+    lockBannerText: { color: '#92400e', fontSize: 13, lineHeight: 19, fontWeight: '600' },
+    lockWarning: { color: '#b45309', fontSize: 12, lineHeight: 18, fontWeight: '600' },
     input: {
       backgroundColor: C.card, borderRadius: 16, padding: 16,
       fontSize: 16, color: C.text, borderWidth: 1, borderColor: C.border,
@@ -660,7 +682,8 @@ function makeStyles(C: ThemeColors) {
     dropdownItemTextActive: { color: Colors.brand, fontWeight: '700' },
     chipRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
     chip: {
-      paddingVertical: 10, paddingHorizontal: 18, borderRadius: 12,
+      minHeight: 44, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 12,
+      justifyContent: 'center',
       backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
     },
     chipSelected: { backgroundColor: Colors.brand, borderColor: Colors.brand },

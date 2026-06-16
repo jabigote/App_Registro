@@ -14,7 +14,7 @@ export default function HistorialVersionesScreen() {
       <View style={styles.header}>
         <BrandLogo screenTitle="Historial de versiones" />
       </View>
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} contentInsetAdjustmentBehavior="automatic">
         <Text style={styles.intro}>
           Mejoras y correcciones incluidas en cada versión publicada.
         </Text>
@@ -78,4 +78,3 @@ function makeStyles(C: ThemeColors) {
     highlight: { color: C.textSecondary, fontSize: 14, lineHeight: 21, flex: 1 },
   });
 }
-

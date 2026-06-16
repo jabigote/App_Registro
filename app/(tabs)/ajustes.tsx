@@ -241,7 +241,7 @@ export default function AjustesScreen() {
         <BrandLogo screenTitle="Ajustes" />
       </View>
 
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} contentInsetAdjustmentBehavior="automatic">
 
         {/* ── CUENTA ── */}
         <Section title="Cuenta" open={open.cuenta} onToggle={() => toggle('cuenta')} styles={styles}>

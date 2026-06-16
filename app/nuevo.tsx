@@ -2,12 +2,13 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Pressable, SafeAreaView, ScrollView, StyleSheet,
+  Alert, Pressable, SafeAreaView, ScrollView, StyleSheet,
   Text, TextInput, View,
 } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { ClienteSearchInput } from '@/components/cliente-search-input';
+import { DatePickerField } from '../components/date-picker-field';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useAppSettings } from '@/contexts/app-settings-context';
@@ -19,9 +20,10 @@ import {
   needsCliente,
   useJornadaForm,
 } from '@/hooks/useJornadaForm';
-import { formatFecha, offsetDateStr, todayDateStr } from '@/utils/date';
-import { parseHoursInput } from '@/utils/time';
 import type { JornadaTemplate } from '@/src/domain/app-settings';
+import { findDateConflicts, isDateLocked } from '@/src/services/registro/conflicts';
+import { todayDateStr } from '@/utils/date';
+import { parseHoursInput } from '@/utils/time';
 
 export default function NuevoRegistroScreen() {
   const router = useRouter();
@@ -34,8 +36,8 @@ export default function NuevoRegistroScreen() {
     fechaPreset?: string;
     descripcionPreset?: string;
   }>();
-  const { addRegistro, saveQuickEntry } = useRegistro();
-  const { templates, addTemplate } = useAppSettings();
+  const { registros, addRegistro, saveQuickEntry } = useRegistro();
+  const { templates, addTemplate, lockedMonths } = useAppSettings();
   const { toast, showToast, dismissToast } = useToast();
   const [saving, setSaving] = useState(false);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,6 +50,12 @@ export default function NuevoRegistroScreen() {
 
   const [fecha, setFecha] = useState(fechaPreset ?? todayDateStr());
   const today = todayDateStr();
+  const dateLocked = isDateLocked(fecha, lockedMonths);
+
+  // Si el fichaje rápido se realizó a partir de las 13:00, va al tramo de tarde
+  const isAfternoonPreset = inicioPreset
+    ? parseInt(inicioPreset.split(':')[0] ?? '0', 10) >= 13
+    : false;
 
   const {
     tipoJornada, setTipoJornada,
@@ -71,10 +79,10 @@ export default function NuevoRegistroScreen() {
     extrasError,
     canSave,
   } = useJornadaForm({
-    initialInicio1:     inicioPreset      ?? '08:00',
-    initialFin1:        finPreset         ?? '13:00',
-    initialInicio2:     inicioPreset ? '' : '14:00',
-    initialFin2:        inicioPreset ? '' : '17:00',
+    initialInicio1: isAfternoonPreset ? '' : (inicioPreset ?? '08:00'),
+    initialFin1:    isAfternoonPreset ? '' : (finPreset    ?? '13:00'),
+    initialInicio2: isAfternoonPreset ? (inicioPreset ?? '') : (inicioPreset ? '' : '14:00'),
+    initialFin2:    isAfternoonPreset ? (finPreset    ?? '') : (inicioPreset ? '' : '17:00'),
     initialDescripcion: descripcionPreset ?? '',
     allowNextDay: Boolean(fechaPreset && finFechaPreset && finFechaPreset > fechaPreset),
   });
@@ -114,8 +122,8 @@ export default function NuevoRegistroScreen() {
     showToast('Plantilla guardada');
   };
 
-  const handleGuardar = async () => {
-    if (!canSave || !effectiveDuration || saving) return;
+  const persistRegistro = async () => {
+    if (!canSave || !effectiveDuration || saving || dateLocked) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSaving(true);
     try {
@@ -155,10 +163,27 @@ export default function NuevoRegistroScreen() {
       showToast('Jornada guardada');
       navTimerRef.current = setTimeout(() => router.replace('/registros'), 1200);
     } catch {
-      showToast('Error al guardar. Inténtalo de nuevo.');
+      showToast('Error al guardar. Inténtalo de nuevo.', 'error');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleGuardar = () => {
+    if (!canSave || !effectiveDuration || saving || dateLocked) return;
+    const conflicts = findDateConflicts(registros, [fecha]);
+    if (conflicts.length === 0) {
+      void persistRegistro();
+      return;
+    }
+    Alert.alert(
+      'Ya hay registros ese día',
+      `El ${fecha} contiene ${conflicts.length} registro${conflicts.length === 1 ? '' : 's'}. ¿Guardar otra jornada igualmente?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Guardar igualmente', onPress: () => { void persistRegistro(); } },
+      ],
+    );
   };
 
   return (
@@ -171,6 +196,7 @@ export default function NuevoRegistroScreen() {
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        contentInsetAdjustmentBehavior="automatic"
       >
         {/* ── Plantillas rápidas ── */}
         {templates.length > 0 && (
@@ -195,18 +221,16 @@ export default function NuevoRegistroScreen() {
         <View style={styles.card}>
           <Text style={styles.cardLabel}>FECHA</Text>
           <View style={styles.cardSep} />
-          <View style={styles.dateNav}>
-            <Pressable onPress={() => setFecha((f) => offsetDateStr(f, -1))} style={styles.dateNavBtn}>
-              <Text style={styles.dateNavArrow}>‹</Text>
-            </Pressable>
-            <Text style={styles.dateNavLabel}>{formatFecha(fecha)}</Text>
-            <Pressable
-              onPress={() => setFecha((f) => offsetDateStr(f, 1))}
-              style={[styles.dateNavBtn, fecha >= today && styles.dateNavBtnOff]}
-              disabled={fecha >= today}
-            >
-              <Text style={[styles.dateNavArrow, fecha >= today && styles.dateNavArrowOff]}>›</Text>
-            </Pressable>
+          <View style={styles.cardPad}>
+            <DatePickerField
+              value={fecha}
+              onChange={setFecha}
+              maximumDate={new Date(`${today}T12:00:00`)}
+              accessibilityLabel="Fecha de la jornada"
+            />
+            {dateLocked ? (
+              <Text style={styles.lockWarning}>Este mes está cerrado. Ábrelo desde Registro mensual para guardar.</Text>
+            ) : null}
           </View>
         </View>
 
@@ -440,10 +464,12 @@ export default function NuevoRegistroScreen() {
 
         {/* ── Acciones ── */}
         <Pressable
-          style={[styles.btnPrimary, (!canSave || saving) && styles.btnDisabled]}
+          style={[styles.btnPrimary, (!canSave || saving || dateLocked) && styles.btnDisabled]}
           onPress={handleGuardar}
-          disabled={!canSave || saving}
+          disabled={!canSave || saving || dateLocked}
           accessibilityRole="button"
+          accessibilityLabel="Guardar jornada"
+          accessibilityState={{ disabled: !canSave || saving || dateLocked }}
         >
           <Text style={styles.btnPrimaryText}>{saving ? 'Guardando…' : 'Guardar jornada'}</Text>
         </Pressable>
@@ -476,7 +502,8 @@ function makeStyles(C: ThemeColors) {
     // ── Plantillas ──
     templateRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
     templateChip: {
-      paddingVertical: 8, paddingHorizontal: 14, borderRadius: 14,
+      minHeight: 44, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 14,
+      justifyContent: 'center',
       backgroundColor: C.subtleBg, borderWidth: 1, borderColor: C.border,
     },
     templateChipText: { color: C.text, fontSize: 13, fontWeight: '600' },
@@ -496,16 +523,7 @@ function makeStyles(C: ThemeColors) {
     cardPad: { padding: 14, gap: 8 },
     requiredMark: { color: Colors.brand },
 
-    // ── Fecha ──
-    dateNav: {
-      flexDirection: 'row', alignItems: 'center',
-      paddingHorizontal: 4, paddingVertical: 2,
-    },
-    dateNavBtn: { padding: 12, borderRadius: 10 },
-    dateNavBtnOff: { opacity: 0.25 },
-    dateNavArrow: { fontSize: 28, color: Colors.brand, fontWeight: '500', lineHeight: 32 },
-    dateNavArrowOff: { color: C.textFaint },
-    dateNavLabel: { flex: 1, fontSize: 17, fontWeight: '700', color: C.text, textAlign: 'center' },
+    lockWarning: { color: '#b45309', fontSize: 12, lineHeight: 18, fontWeight: '600' },
 
     // ── Dropdown tipo ──
     select: {
@@ -554,7 +572,8 @@ function makeStyles(C: ThemeColors) {
     detailRowLabel: { fontSize: 14, fontWeight: '600', color: C.text, width: 80 },
     chipRow: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: {
-      paddingVertical: 7, paddingHorizontal: 14, borderRadius: 10,
+      minHeight: 44, paddingVertical: 7, paddingHorizontal: 14, borderRadius: 10,
+      justifyContent: 'center',
       backgroundColor: C.background, borderWidth: 1, borderColor: C.border,
     },
     chipActive: { backgroundColor: Colors.brand, borderColor: Colors.brand },

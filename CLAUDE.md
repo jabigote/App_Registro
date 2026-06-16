@@ -1,7 +1,7 @@
 # mi-app-ios — Contexto Claude
 
 ## Stack
-Expo ~54 / React Native 0.81 / React 19 / TypeScript ~5.9 · Expo Router ~6 (Stack pura, sin tabs) · AsyncStorage (sin backend) · xlsx+jszip para exportación Excel · Probada en iPhone con Expo Go.
+Expo ~54 / React Native 0.81 / React 19 / TypeScript ~5.9 · Expo Router ~6 (Native Tabs + Stack) · AsyncStorage (sin backend) · xlsx+jszip para exportación Excel · Probada en iPhone con Expo Go.
 
 ## Comandos (PowerShell)
 ```powershell
@@ -9,11 +9,11 @@ npx.cmd expo start           # arrancar
 npx.cmd expo start --tunnel  # con túnel
 npm.cmd run lint             # ESLint
 ```
-No existen scripts `build`, `test` ni `dev`. No hay Vite, Tailwind ni Vitest.
+No existen scripts `build` ni `dev`. Hay scripts `lint`, `typecheck` y `test`. No hay Vite, Tailwind ni Vitest.
 
 ## Restricciones — leer primero
 - No HTML (`div`, `button`, `input`). Solo componentes RN: `View`, `Text`, `Pressable`, `TextInput`, `ScrollView`, `SafeAreaView`.
-- No Vite, no Capacitor, no bottom tabs, no builds nativos.
+- No Vite, no Capacitor ni builds nativos. La navegación principal usa Native Tabs de Expo Router.
 - No añadir dependencias innecesarias.
 - No tocar `scripts/reset-project.js`.
 - TypeScript explícito, sin `any`.
@@ -25,14 +25,35 @@ No existen scripts `build`, `test` ni `dev`. No hay Vite, Tailwind ni Vitest.
 ## Pantallas (`app/`)
 | Archivo | Ruta | Función |
 |---|---|---|
-| `_layout.tsx` | raíz | AuthGuard + proveedores |
+| `_layout.tsx` | raíz | AuthGuard + proveedores (GestureHandlerRootView incluido) |
 | `login.tsx` | `/login` | Login (nombre + email, local) |
-| `index.tsx` | `/` | Panel: fichaje rápido + últimas jornadas |
-| `nuevo.tsx` | `/nuevo` | Formulario nueva jornada |
-| `registros.tsx` | `/registros` | Lista con búsqueda y borrado |
+| `(tabs)/index.tsx` | `/` | Home: fichaje rápido 3 estados (idle/active/complete) + stats mes + CTAs |
+| `nuevo.tsx` | `/nuevo` | Formulario nueva jornada; detecta tramo tarde si inicioPreset ≥ 13:00 |
+| `(tabs)/registros.tsx` | `/registros` | Lista agrupada por mes; swipe derecha=editar, izquierda=borrar |
 | `registro-detalle.tsx` | `/registro-detalle` | Detalle + edición |
-| `registro-mensual.tsx` | `/registro-mensual` | Resumen mensual + exportar Excel |
-| `ajustes.tsx` | `/ajustes` | Usuario, estadísticas, logout |
+| `(tabs)/registro-mensual.tsx` | `/registro-mensual` | Resumen mensual + exportar Excel |
+| `(tabs)/ajustes.tsx` | `/ajustes` | Usuario, estadísticas, logout |
+| `ausencias.tsx` | `/ausencias` | Registro de ausencias (modal) |
+
+## Diseño de la home (`(tabs)/index.tsx`)
+- **Sin ScrollView** — layout fijo flex: header + fichajeZone(flex:1) + statsBar + ctaRow
+- **Estado idle**: anillo decorativo + "Sin fichar" + botón verde Entrada
+- **Estado active**: badge verde "En curso" + tiempo transcurrido (~60px) + botón rojo Salida
+- **Estado complete**: badge ámbar + rango horario + botón "Completar jornada →"
+- Stats: 3 columnas (este mes / extras / Mensual→) en card horizontal
+- CTAs: "Nueva jornada" (brand, flex 2) + "Ausencias" (outline, flex 1)
+- Importa `expo-image Image` para el `brandMark` en el header
+
+## Swipe en Registros (`(tabs)/registros.tsx`)
+- `friction={1.5}`, `leftThreshold={30}`, `rightThreshold={30}`
+- Acciones con `borderRadius: 18` y `minWidth: 88` para zona táctil suficiente
+- `GestureHandlerRootView` ya está en `_layout.tsx` raíz
+
+## Tabs (`(tabs)/_layout.tsx`)
+- Inicio: `home-outline` / `home`
+- Registros: `document-text-outline` / `document-text`
+- Mensual: `stats-chart-outline` / `stats-chart`
+- Ajustes: `settings-outline` / `settings`
 
 ## Contextos y claves AsyncStorage
 - **`auth-context.tsx`** — `useAuth`. Clave `@salvagnini_usuario`. Tipo `{ nombre, email }`.
