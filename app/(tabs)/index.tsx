@@ -1,9 +1,9 @@
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
+import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
@@ -18,7 +18,6 @@ const MESES_ES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
-const brandLogo = require('../../assets/images/salvagnini-logo.webp');
 
 function getSaludo(): string {
   const h = new Date().getHours();
@@ -78,18 +77,20 @@ export default function HomeScreen() {
     return () => clearInterval(id);
   }, []);
 
+  // ── Stats (reservado para futura pantalla de análisis) ──────────────────────
   const registrosMes = useMemo(() => {
     const n = new Date();
     return filterRegistrosByMonth(registros, n.getFullYear(), n.getMonth());
   }, [registros]);
   const monthlyBreakdown = useMemo(() => buildMonthlyBreakdown(registrosMes), [registrosMes]);
-
   const fmtMinutes = (min: number) => {
     if (min === 0) return '—';
     const h = Math.floor(min / 60);
     const m = min % 60;
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   };
+  void loading; void monthlyBreakdown; void fmtMinutes;
+  // ────────────────────────────────────────────────────────────────────────────
 
   const handleEntrada = async () => {
     if (quickSaving) return;
@@ -150,28 +151,34 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* ── Header ── */}
+      {/* ── Encabezado — igual que el resto de pantallas ── */}
       <View style={styles.header}>
-        <Image source={brandLogo} style={styles.logoHeader} contentFit="contain" />
-        <View style={styles.infoBlock}>
-          {nombre ? (
-            <Text style={styles.headerGreeting}>{getSaludo()}, {nombre}</Text>
-          ) : null}
-          <Text style={styles.headerDate}>{dateLabel}</Text>
-          <Text style={styles.headerClock}>{clockStr}</Text>
-        </View>
+        <BrandLogo />
       </View>
 
-      {/* ── Zona de fichaje ── */}
-      <View style={styles.fichajeZone}>
+      {/* ── Saludo / Fecha / Reloj ── */}
+      <View style={styles.infoSection}>
+        {nombre ? (
+          <Text style={styles.infoGreeting}>{getSaludo()}, {nombre}</Text>
+        ) : null}
+        <Text style={styles.infoDate}>{dateLabel}</Text>
+        <Text style={styles.infoClock}>{clockStr}</Text>
+      </View>
+
+      {/* ── Separador ── */}
+      <View style={styles.sep} />
+
+      {/* ── Fichaje rápido ── */}
+      <View style={styles.fichajeSection}>
 
         {fichajeState === 'idle' && (
           <View style={styles.fichajeCard}>
-            <View style={styles.idleRing}>
-              <View style={styles.idleRingInner} />
+            <View style={styles.statusRow}>
+              <View style={styles.dotIdle} />
+              <Text style={styles.statusLabel}>Sin fichar</Text>
             </View>
-            <Text style={styles.stateTitle}>Sin fichar</Text>
-            <Text style={styles.stateSubtitle}>Toca para registrar tu entrada</Text>
+            <View style={styles.cardSep} />
+            <Text style={styles.fichajeHint}>Registra tu entrada para empezar a contar el tiempo</Text>
             <Pressable
               style={[styles.heroBtn, styles.heroBtnEntrada, quickSaving && styles.heroBtnDisabled]}
               onPress={handleEntrada}
@@ -179,22 +186,22 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Registrar entrada"
             >
-              <Text style={styles.heroBtnText}>Entrada</Text>
+              <Text style={styles.heroBtnText}>Registrar entrada</Text>
             </Pressable>
           </View>
         )}
 
         {fichajeState === 'active' && (
           <View style={styles.fichajeCard}>
-            <View style={styles.activeBadge}>
-              <View style={styles.activeDot} />
-              <Text style={styles.activeBadgeText}>Jornada en curso</Text>
+            <View style={styles.statusRow}>
+              <View style={styles.dotActive} />
+              <Text style={[styles.statusLabel, styles.statusActive]}>Jornada en curso</Text>
+              <Text style={styles.statusSince}> · {quickEntry!.inicio}</Text>
             </View>
+            {isOldEntry && <Text style={styles.warnText}>Fichaje del {quickEntry!.fecha}</Text>}
+            <View style={styles.cardSep} />
             <Text style={styles.elapsedTime}>{elapsed || '—'}</Text>
-            <Text style={styles.stateSubtitle}>desde las {quickEntry!.inicio}</Text>
-            {isOldEntry && (
-              <Text style={styles.warnText}>Fichaje del {quickEntry!.fecha}</Text>
-            )}
+            <View style={styles.cardSep} />
             <Pressable
               style={[styles.heroBtn, styles.heroBtnSalida, quickSaving && styles.heroBtnDisabled]}
               onPress={handleSalida}
@@ -202,7 +209,7 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Registrar salida"
             >
-              <Text style={styles.heroBtnText}>Salida</Text>
+              <Text style={styles.heroBtnText}>Registrar salida</Text>
             </Pressable>
             <Pressable style={styles.cancelLink} onPress={handleCancelarEntrada} disabled={quickSaving}>
               <Text style={styles.cancelLinkText}>Cancelar entrada</Text>
@@ -212,15 +219,14 @@ export default function HomeScreen() {
 
         {fichajeState === 'complete' && (
           <View style={styles.fichajeCard}>
-            <View style={[styles.activeBadge, styles.pendingBadge]}>
-              <Text style={styles.pendingBadgeText}>Pendiente de completar</Text>
+            <View style={styles.statusRow}>
+              <View style={styles.dotPending} />
+              <Text style={[styles.statusLabel, styles.statusPending]}>Pendiente de completar</Text>
             </View>
-            <Text style={styles.completeRange}>
-              {quickEntry!.inicio} → {quickEntry!.fin}
-            </Text>
-            {isOldEntry && (
-              <Text style={styles.warnText}>Fichaje del {quickEntry!.fecha}</Text>
-            )}
+            {isOldEntry && <Text style={styles.warnText}>Fichaje del {quickEntry!.fecha}</Text>}
+            <View style={styles.cardSep} />
+            <Text style={styles.completeRange}>{quickEntry!.inicio} → {quickEntry!.fin}</Text>
+            <View style={styles.cardSep} />
             <Pressable
               style={[styles.heroBtn, styles.heroBtnCompletar]}
               onPress={handleCompletarJornada}
@@ -236,30 +242,6 @@ export default function HomeScreen() {
         )}
 
       </View>
-
-      {/* ── Stats strip — reservado para futura pantalla de análisis ──
-      <View style={styles.statsBar}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{loading ? '…' : fmtMinutes(monthlyBreakdown.workedMinutes)}</Text>
-          <Text style={styles.statLabel}>este mes</Text>
-        </View>
-        <View style={styles.statSep} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{loading ? '…' : fmtMinutes(monthlyBreakdown.overtimeMinutes)}</Text>
-          <Text style={styles.statLabel}>extras</Text>
-        </View>
-        <View style={styles.statSep} />
-        <Pressable
-          style={styles.statItem}
-          onPress={() => router.push('/registro-mensual')}
-          accessibilityRole="button"
-          accessibilityLabel="Ver resumen mensual"
-        >
-          <Text style={[styles.statValue, { color: Colors.brand }]}>Mensual</Text>
-          <Text style={[styles.statLabel, { color: Colors.brand }]}>→</Text>
-        </Pressable>
-      </View>
-      ── */}
 
       {/* ── CTAs secundarias ── */}
       <View style={styles.ctaRow}>
@@ -290,135 +272,135 @@ function makeStyles(C: ThemeColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.background },
 
-    // ── Header ──
+    // ── Encabezado (igual que el resto de pantallas) ──
     header: {
-      alignItems: 'center',
-      paddingHorizontal: 24,
-      paddingTop: 14,
-      paddingBottom: 12,
+      paddingHorizontal: 20,
+      paddingTop: 10,
+      paddingBottom: 14,
+      backgroundColor: C.background,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: C.border,
-      gap: 6,
     },
-    logoHeader: {
-      height: 38,
-      width: 190,
-    },
-    infoBlock: {
+
+    // ── Saludo / Fecha / Reloj ──
+    infoSection: {
       alignItems: 'center',
-      gap: 1,
+      paddingTop: 18,
+      paddingBottom: 20,
+      paddingHorizontal: 24,
+      gap: 4,
     },
-    headerGreeting: {
-      fontSize: 15,
-      fontWeight: '700',
+    infoGreeting: {
+      fontSize: 20,
+      fontWeight: '800',
       color: C.text,
     },
-    headerDate: {
-      fontSize: 12,
+    infoDate: {
+      fontSize: 15,
       fontWeight: '500',
       color: C.textMuted,
       textTransform: 'capitalize',
     },
-    headerClock: {
-      fontSize: 26,
+    infoClock: {
+      fontSize: 40,
       fontWeight: '800',
       color: Colors.brand,
-      letterSpacing: 1,
-      marginTop: 4,
+      letterSpacing: 2,
+      marginTop: 6,
+      lineHeight: 46,
+    },
+    sep: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: C.border,
     },
 
-    // ── Fichaje zone ──
-    fichajeZone: {
+    // ── Fichaje ──
+    fichajeSection: {
       flex: 1,
-      justifyContent: 'center',
       paddingHorizontal: 20,
-      paddingVertical: 16,
+      paddingTop: 18,
+      paddingBottom: 10,
+      justifyContent: 'center',
     },
     fichajeCard: {
       backgroundColor: C.card,
-      borderRadius: 28,
+      borderRadius: 24,
       borderWidth: 1,
       borderColor: C.border,
-      padding: 28,
-      alignItems: 'center',
-      gap: 14,
+      overflow: 'hidden',
+    },
+    cardSep: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: C.border,
     },
 
-    // Estado idle
-    idleRing: {
-      width: 76,
-      height: 76,
-      borderRadius: 38,
-      borderWidth: 2.5,
-      borderColor: C.border,
-      justifyContent: 'center',
+    // Status row
+    statusRow: {
+      flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: 4,
+      gap: 8,
+      paddingHorizontal: 20,
+      paddingVertical: 14,
     },
-    idleRingInner: {
-      width: 52,
-      height: 52,
-      borderRadius: 26,
-      backgroundColor: C.subtleBg,
+    dotIdle: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      borderWidth: 2,
+      borderColor: C.border,
     },
-    stateTitle: {
-      fontSize: 26,
-      fontWeight: '800',
-      color: C.text,
+    dotActive: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: '#22c55e',
     },
-    stateSubtitle: {
+    dotPending: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: '#f59e0b',
+    },
+    statusLabel: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: C.textSecondary,
+    },
+    statusActive: { color: '#22c55e' },
+    statusPending: { color: '#f59e0b' },
+    statusSince: {
+      fontSize: 13,
+      color: C.textMuted,
+      fontWeight: '500',
+    },
+
+    fichajeHint: {
       fontSize: 14,
       color: C.textMuted,
       textAlign: 'center',
       lineHeight: 20,
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 16,
     },
 
-    // Estado active
-    activeBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      backgroundColor: '#22c55e18',
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: '#22c55e40',
-    },
-    activeDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: '#22c55e',
-    },
-    activeBadgeText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: '#22c55e',
-    },
+    // Datos centrales
     elapsedTime: {
-      fontSize: 60,
+      fontSize: 52,
       fontWeight: '900',
       color: C.text,
-      letterSpacing: -2,
-      lineHeight: 68,
-    },
-
-    // Estado complete
-    pendingBadge: {
-      backgroundColor: '#f59e0b18',
-      borderColor: '#f59e0b40',
-    },
-    pendingBadgeText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: '#f59e0b',
+      letterSpacing: -1,
+      lineHeight: 60,
+      textAlign: 'center',
+      paddingVertical: 16,
     },
     completeRange: {
-      fontSize: 38,
+      fontSize: 36,
       fontWeight: '800',
       color: C.text,
-      letterSpacing: -1,
+      letterSpacing: -0.5,
+      textAlign: 'center',
+      paddingVertical: 16,
     },
 
     warnText: {
@@ -426,26 +408,33 @@ function makeStyles(C: ThemeColors) {
       color: '#b45309',
       fontWeight: '600',
       textAlign: 'center',
+      paddingHorizontal: 20,
+      paddingBottom: 4,
     },
 
     // Botones hero
     heroBtn: {
-      width: '100%',
-      borderRadius: 18,
-      paddingVertical: 18,
+      marginHorizontal: 20,
+      marginBottom: 4,
+      marginTop: 4,
+      borderRadius: 16,
+      paddingVertical: 17,
       alignItems: 'center',
-      marginTop: 6,
     },
     heroBtnEntrada: { backgroundColor: '#22c55e' },
     heroBtnSalida:  { backgroundColor: Colors.brand },
     heroBtnCompletar: { backgroundColor: Colors.brand },
     heroBtnDisabled: { opacity: 0.55 },
-    heroBtnText: { color: '#ffffff', fontSize: 18, fontWeight: '800' },
+    heroBtnText: { color: '#ffffff', fontSize: 17, fontWeight: '800' },
 
-    cancelLink: { paddingVertical: 8, paddingHorizontal: 16 },
-    cancelLinkText: { fontSize: 14, color: C.textMuted, fontWeight: '600' },
+    cancelLink: {
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      alignItems: 'center',
+    },
+    cancelLinkText: { fontSize: 13, color: C.textMuted, fontWeight: '600' },
 
-    // ── Stats bar ──
+    // ── Stats (reservado para análisis futuro) ──
     statsBar: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -457,20 +446,12 @@ function makeStyles(C: ThemeColors) {
       borderWidth: 1,
       borderColor: C.border,
     },
-    statItem: {
-      flex: 1,
-      alignItems: 'center',
-      gap: 2,
-    },
+    statItem: { flex: 1, alignItems: 'center', gap: 2 },
     statValue: { fontSize: 18, fontWeight: '800', color: C.text },
     statLabel: { fontSize: 11, fontWeight: '600', color: C.textMuted },
-    statSep: {
-      width: StyleSheet.hairlineWidth,
-      height: 32,
-      backgroundColor: C.border,
-    },
+    statSep: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: C.border },
 
-    // ── CTA row ──
+    // ── CTAs ──
     ctaRow: {
       flexDirection: 'row',
       paddingHorizontal: 20,
