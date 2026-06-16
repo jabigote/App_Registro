@@ -1,7 +1,7 @@
 import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, SafeAreaView, SectionList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, SafeAreaView, SectionList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
@@ -88,45 +88,35 @@ export default function RegistrosScreen() {
     router.push({ pathname: '/registro-detalle', params: { id, editMode: '1' } });
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const deleted = registros.find((registro) => registro.id === id);
     if (deleted && isDateLocked(getRegistroDateStr(deleted), lockedMonths)) {
       showToast('Este mes está cerrado. Ábrelo desde Registro mensual.', 'error');
       return;
     }
-    swipeableRefs.current.get(id)?.close();
-    Alert.alert('Eliminar jornada', '¿Seguro que quieres eliminar esta jornada?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteRegistro(id);
-            showToast('Jornada eliminada', 'success', deleted ? {
-              label: 'Deshacer',
-              onPress: () => {
-                mergeRegistros([deleted]).catch(() => showToast('No se pudo recuperar la jornada.', 'error'));
-              },
-            } : undefined);
-          } catch {
-            showToast('No se pudo eliminar la jornada.', 'error');
-          }
+    try {
+      await deleteRegistro(id);
+      showToast('Jornada eliminada', 'success', deleted ? {
+        label: 'Deshacer',
+        onPress: () => {
+          mergeRegistros([deleted]).catch(() => showToast('No se pudo recuperar la jornada.', 'error'));
         },
-      },
-    ]);
+      } : undefined);
+    } catch {
+      showToast('No se pudo eliminar la jornada.', 'error');
+    }
   };
 
-  const renderLeftActions = (id: string) => (
-    <Pressable style={styles.swipeEdit} onPress={() => handleEdit(id)}>
+  const renderLeftActions = () => (
+    <View style={styles.swipeEdit}>
       <Text style={styles.swipeEditText}>Editar</Text>
-    </Pressable>
+    </View>
   );
 
-  const renderRightActions = (id: string) => (
-    <Pressable style={styles.swipeDelete} onPress={() => handleDelete(id)}>
+  const renderRightActions = () => (
+    <View style={styles.swipeDelete}>
       <Text style={styles.swipeDeleteText}>Borrar</Text>
-    </Pressable>
+    </View>
   );
 
   const renderItem = ({ item: registro }: { item: Registro }) => {
@@ -142,13 +132,17 @@ export default function RegistrosScreen() {
       <Swipeable
         enabled={!locked}
         ref={(ref) => { swipeableRefs.current.set(registro.id, ref); }}
-        renderLeftActions={() => renderLeftActions(registro.id)}
-        renderRightActions={() => renderRightActions(registro.id)}
+        renderLeftActions={renderLeftActions}
+        renderRightActions={renderRightActions}
         overshootLeft={false}
         overshootRight={false}
         friction={1.5}
         leftThreshold={30}
         rightThreshold={30}
+        onSwipeableOpen={(direction) => {
+          if (direction === 'left') handleEdit(registro.id);
+          else void handleDelete(registro.id);
+        }}
       >
         <Pressable
           style={styles.recordCard}

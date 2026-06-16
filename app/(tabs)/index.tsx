@@ -18,7 +18,7 @@ const MESES_ES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
-const brandMark = require('../../assets/images/salvagnini-mark.png');
+const brandLogo = require('../../assets/images/salvagnini-logo.webp');
 
 function getSaludo(): string {
   const h = new Date().getHours();
@@ -55,6 +55,10 @@ export default function HomeScreen() {
   const { registros, loading, quickEntry, saveQuickEntry } = useRegistro();
   const { toast, showToast, dismissToast } = useToast();
   const [quickSaving, setQuickSaving] = useState(false);
+  const [clockStr, setClockStr] = useState(() => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  });
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
 
@@ -64,6 +68,15 @@ export default function HomeScreen() {
 
   const timerActive = Boolean(quickEntry && !quickEntry.fin);
   const elapsed = useElapsedTimer(quickEntry?.fecha, quickEntry?.inicio, timerActive);
+
+  useEffect(() => {
+    const update = () => {
+      const d = new Date();
+      setClockStr(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    };
+    const id = setInterval(update, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const registrosMes = useMemo(() => {
     const n = new Date();
@@ -139,13 +152,14 @@ export default function HomeScreen() {
 
       {/* ── Header ── */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerDate}>{dateLabel}</Text>
+        <Image source={brandLogo} style={styles.logoHeader} contentFit="contain" />
+        <View style={styles.infoBlock}>
           {nombre ? (
             <Text style={styles.headerGreeting}>{getSaludo()}, {nombre}</Text>
           ) : null}
+          <Text style={styles.headerDate}>{dateLabel}</Text>
+          <Text style={styles.headerClock}>{clockStr}</Text>
         </View>
-        <Image source={brandMark} style={styles.brandMark} contentFit="contain" />
       </View>
 
       {/* ── Zona de fichaje ── */}
@@ -223,7 +237,7 @@ export default function HomeScreen() {
 
       </View>
 
-      {/* ── Stats strip ── */}
+      {/* ── Stats strip — reservado para futura pantalla de análisis ──
       <View style={styles.statsBar}>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{loading ? '…' : fmtMinutes(monthlyBreakdown.workedMinutes)}</Text>
@@ -245,6 +259,7 @@ export default function HomeScreen() {
           <Text style={[styles.statLabel, { color: Colors.brand }]}>→</Text>
         </Pressable>
       </View>
+      ── */}
 
       {/* ── CTAs secundarias ── */}
       <View style={styles.ctaRow}>
@@ -277,31 +292,39 @@ function makeStyles(C: ThemeColors) {
 
     // ── Header ──
     header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
       paddingHorizontal: 24,
-      paddingTop: 12,
-      paddingBottom: 16,
+      paddingTop: 14,
+      paddingBottom: 12,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: C.border,
+      gap: 6,
+    },
+    logoHeader: {
+      height: 38,
+      width: 190,
+    },
+    infoBlock: {
+      alignItems: 'center',
+      gap: 1,
+    },
+    headerGreeting: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: C.text,
     },
     headerDate: {
-      fontSize: 13,
-      fontWeight: '600',
+      fontSize: 12,
+      fontWeight: '500',
       color: C.textMuted,
       textTransform: 'capitalize',
     },
-    headerGreeting: {
-      fontSize: 20,
+    headerClock: {
+      fontSize: 26,
       fontWeight: '800',
-      color: C.text,
-      marginTop: 2,
-    },
-    brandMark: {
-      width: 46,
-      height: 46,
-      borderRadius: 14,
+      color: Colors.brand,
+      letterSpacing: 1,
+      marginTop: 4,
     },
 
     // ── Fichaje zone ──
