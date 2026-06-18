@@ -7,6 +7,33 @@ export type ReleaseEntry = {
 
 export const RELEASE_HISTORY: ReleaseEntry[] = [
   {
+    version: '1.7.0',
+    date: '18 de junio de 2026',
+    title: 'Modal de edición rápida, alertas inteligentes y analítica avanzada',
+    highlights: [
+      'Edición rápida desde la lista de registros: modal para cambiar horario, dieta, pernocta y notas sin navegar al detalle.',
+      'Alertas en la pantalla principal si no hay jornadas registradas durante la semana actual o la anterior.',
+      'Aviso automático los primeros días del mes para exportar el mes anterior antes de archivarlo.',
+      'Contador acumulado de horas extra en Ajustes: desglose por mes actual, año en curso y total histórico.',
+      'Aviso configurable de fin de jornada (hora fija) en la sección de Notificaciones.',
+      'Comparativa mensual en Registro mensual: diferencia de horas respecto al mes anterior.',
+      'Scaffolding de widget nativo iOS (WidgetKit) listo para integrar cuando se compile la app.',
+      'Stubs de Modo Viaje y Foto Justificante con arquitectura de permisos multi-nivel preparada.',
+    ],
+  },
+  {
+    version: '1.6.0',
+    date: '17 de junio de 2026',
+    title: 'Rediseño de inicio, pestaña Ausencias y corrección de gestos',
+    highlights: [
+      'Pantalla de inicio rediseñada: layout fijo sin scroll, anillo de estado, temporizador en tiempo real y botones de acción claros para cada estado del fichaje.',
+      'Ausencias se integra como pestaña nativa en la barra inferior junto a Inicio, Registros, Mensual y Ajustes.',
+      'Corrección del comportamiento de swipe en Registros: deslizar para editar o borrar ya no navega accidentalmente a la entrada.',
+      'Botón "+" fijo en la esquina inferior derecha de Registros para crear jornadas sin perder la posición de la lista.',
+      'Panel de alertas contextual debajo de la cabecera de Inicio para avisos de jornada.',
+    ],
+  },
+  {
     version: '1.5.0',
     date: '15 de junio de 2026',
     title: 'Navegación nativa y prevención de errores',
