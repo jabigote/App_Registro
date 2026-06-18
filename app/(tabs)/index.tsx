@@ -9,6 +9,8 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
+import { useFichajeAlerts } from '@/hooks/useFichajeAlerts';
+import { useMonthlyBackupPrompt } from '@/hooks/useMonthlyBackupPrompt';
 import { dateToDateStr } from '@/utils/date';
 import { roundDateToNearest30 } from '@/utils/time';
 
@@ -132,6 +134,9 @@ export default function HomeScreen() {
 
   const isOldEntry = quickEntry?.fecha != null && quickEntry.fecha !== dateToDateStr(new Date());
 
+  const alerts = useFichajeAlerts();
+  useMonthlyBackupPrompt();
+
   const mainBtnLabel =
     fichajeState === 'idle' ? 'Registrar entrada' :
     fichajeState === 'active' ? 'Registrar salida' :
@@ -171,6 +176,17 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.sep} />
+
+      {/* Panel de alertas */}
+      {alerts.length > 0 && (
+        <View style={styles.alertsPanel}>
+          {alerts.map((a) => (
+            <View key={a.id} style={styles.alertItem}>
+              <Text style={styles.alertText}>{a.message}</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* Zona de fichaje */}
       <View style={styles.fichajeZone}>
@@ -359,5 +375,16 @@ function makeStyles(C: ThemeColors) {
       alignItems: 'center', marginTop: 4,
     },
     secondaryLinkText: { fontSize: 14, color: C.textMuted, fontWeight: '600' },
+
+    // Panel de alertas
+    alertsPanel: {
+      paddingHorizontal: 20, paddingTop: 10, gap: 6,
+    },
+    alertItem: {
+      backgroundColor: 'rgba(245,158,11,0.1)',
+      borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9,
+      borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)',
+    },
+    alertText: { fontSize: 13, color: '#b45309', fontWeight: '600' },
   });
 }

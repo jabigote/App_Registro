@@ -9,7 +9,6 @@ import {
   Alert, LayoutAnimation, Pressable, SafeAreaView, ScrollView,
   StyleSheet, Switch, Text, TextInput, View,
 } from 'react-native';
-
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
@@ -20,6 +19,9 @@ import { type ThemePreference, useThemePreference } from '@/contexts/theme-conte
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 import { isRegistro, type Registro } from '@/src/domain/registro';
 import { NOTIFICATION_REMINDER_KEY } from '@/utils/notifications';
+
+const EOD_ENABLED_KEY = '@salvagnini_notif_eod_enabled';
+const EOD_HORA_KEY = '@salvagnini_notif_eod_hora';
 
 function isRegistroArray(value: unknown): value is Registro[] {
   return Array.isArray(value) && value.every(isRegistro);
@@ -77,7 +79,26 @@ export default function AjustesScreen() {
   const [nombre, setNombre] = useState(usuario?.nombre ?? '');
   const [email, setEmail] = useState(usuario?.email ?? '');
   const [notifCierre, setNotifCierre] = useState(true);
+  const [eodEnabled, setEodEnabled] = useState(false);
+  const [eodHora, setEodHora] = useState('17:00');
   const [targetHoursInput, setTargetHoursInput] = useState(String(monthlyTargetHours));
+
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentYear = String(now.getFullYear());
+
+  const extrasStats = useMemo(() => {
+    let total = 0, thisMes = 0, thisAnio = 0;
+    for (const r of registros) {
+      const h = r.horasExtras ?? 0;
+      if (h <= 0) continue;
+      total += h;
+      const d = r.fecha ?? r.createdAt.slice(0, 10);
+      if (d.startsWith(currentMonth)) thisMes += h;
+      if (d.startsWith(currentYear)) thisAnio += h;
+    }
+    return { total, thisMes, thisAnio };
+  }, [registros, currentMonth, currentYear]);
   const [open, setOpen] = useState<Record<string, boolean>>({
     cuenta: true,   // CUENTA abierto por defecto
     pantalla: false,
@@ -87,8 +108,12 @@ export default function AjustesScreen() {
   });
 
   useEffect(() => {
-    AsyncStorage.getItem(NOTIFICATION_REMINDER_KEY)
-      .then((v) => { if (v !== null) setNotifCierre(v === 'true'); })
+    AsyncStorage.multiGet([NOTIFICATION_REMINDER_KEY, EOD_ENABLED_KEY, EOD_HORA_KEY])
+      .then(([cierre, eodEn, eodH]) => {
+        if (cierre[1] !== null) setNotifCierre(cierre[1] === 'true');
+        if (eodEn[1] !== null) setEodEnabled(eodEn[1] === 'true');
+        if (eodH[1]) setEodHora(eodH[1]);
+      })
       .catch(() => {});
   }, []);
 
@@ -107,6 +132,21 @@ export default function AjustesScreen() {
     if (quickEntry && !quickEntry.fin) {
       await saveQuickEntry({ ...quickEntry, notificationId: undefined });
     }
+  };
+
+  const toggleEod = async (val: boolean) => {
+    setEodEnabled(val);
+    await AsyncStorage.setItem(EOD_ENABLED_KEY, String(val));
+  };
+
+  const saveEodHora = async () => {
+    const clean = eodHora.trim();
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(clean)) {
+      showToast('Hora no válida. Usa formato HH:MM', 'error');
+      return;
+    }
+    await AsyncStorage.setItem(EOD_HORA_KEY, clean);
+    showToast('Hora de aviso fin de jornada actualizada.');
   };
 
   const handleReminderHours = async (hours: number) => {
@@ -344,6 +384,35 @@ export default function AjustesScreen() {
               ))}
             </View>
           </View>
+          <View style={styles.rowDivider} />
+          <View style={styles.row}>
+            <View style={styles.rowLabelGroup}>
+              <Text style={styles.rowLabel}>Aviso fin de jornada</Text>
+              <Text style={styles.rowSublabel}>Recordatorio fijo al final del día</Text>
+            </View>
+            <Switch
+              value={eodEnabled}
+              onValueChange={toggleEod}
+              trackColor={{ false: C.border, true: Colors.brand }}
+              thumbColor="#ffffff"
+            />
+          </View>
+          {eodEnabled && (
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Hora del aviso</Text>
+              <TextInput
+                style={styles.compactInput}
+                value={eodHora}
+                onChangeText={setEodHora}
+                onEndEditing={saveEodHora}
+                placeholder="17:00"
+                placeholderTextColor={C.textFaint}
+                keyboardType="numbers-and-punctuation"
+                maxLength={5}
+                autoCorrect={false}
+              />
+            </View>
+          )}
         </Section>
 
         {/* ── DATOS ── */}
@@ -351,6 +420,27 @@ export default function AjustesScreen() {
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Jornadas guardadas</Text>
             <Text style={styles.rowValue}>{registros.length}</Text>
+          </View>
+          <View style={styles.rowDivider} />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Horas extra este mes</Text>
+            <Text style={[styles.rowValue, extrasStats.thisMes > 0 && styles.extrasPositive]}>
+              {extrasStats.thisMes > 0 ? `+${extrasStats.thisMes} h` : '—'}
+            </Text>
+          </View>
+          <View style={styles.rowDivider} />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Horas extra este año</Text>
+            <Text style={[styles.rowValue, extrasStats.thisAnio > 0 && styles.extrasPositive]}>
+              {extrasStats.thisAnio > 0 ? `+${extrasStats.thisAnio} h` : '—'}
+            </Text>
+          </View>
+          <View style={styles.rowDivider} />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Horas extra totales</Text>
+            <Text style={[styles.rowValue, extrasStats.total > 0 && styles.extrasPositive]}>
+              {extrasStats.total > 0 ? `+${extrasStats.total} h` : '—'}
+            </Text>
           </View>
           <View style={styles.rowDivider} />
           <View style={styles.row}>
@@ -478,6 +568,7 @@ function makeStyles(C: ThemeColors) {
     chevron: { fontSize: 20, color: C.textFaint, lineHeight: 22 },
     versionLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     destructive: { color: '#dc2626' },
+    extrasPositive: { color: '#22c55e', fontWeight: '700' },
     warningText: { color: '#b45309', fontSize: 13, lineHeight: 18, padding: 16 },
     profileInput: {
       color: C.text, fontSize: 14, textAlign: 'right', minWidth: 150,

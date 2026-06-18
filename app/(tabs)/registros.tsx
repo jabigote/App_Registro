@@ -3,6 +3,8 @@ import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, SafeAreaView, SectionList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { QuickEditModal } from '@/components/QuickEditModal';
+
 import { BrandLogo } from '@/components/brand-logo';
 import { Toast, useToast } from '@/components/toast';
 import { Colors } from '@/constants/theme';
@@ -39,7 +41,7 @@ function getTimeDisplay(r: Registro): string {
 type Section = { title: string; data: Registro[] };
 
 export default function RegistrosScreen() {
-  const { registros, loading, deleteRegistro, mergeRegistros } = useRegistro();
+  const { registros, loading, deleteRegistro, mergeRegistros, updateRegistro } = useRegistro();
   const { lockedMonths } = useAppSettings();
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -49,6 +51,7 @@ export default function RegistrosScreen() {
   const styles = useMemo(() => makeStyles(C), [C]);
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
   const isSwipingRef = useRef(false);
+  const [editingRegistro, setEditingRegistro] = useState<(typeof registros)[0] | null>(null);
 
   const filteredRegistros = useMemo(() => {
     let base = tipoFiltro
@@ -81,12 +84,13 @@ export default function RegistrosScreen() {
 
   const handleEdit = (id: string) => {
     const registro = registros.find((item) => item.id === id);
-    if (registro && isDateLocked(getRegistroDateStr(registro), lockedMonths)) {
+    if (!registro) return;
+    if (isDateLocked(getRegistroDateStr(registro), lockedMonths)) {
       showToast('Este mes está cerrado. Ábrelo desde Registro mensual.', 'error');
       return;
     }
     swipeableRefs.current.get(id)?.close();
-    router.push({ pathname: '/registro-detalle', params: { id, editMode: '1' } });
+    setEditingRegistro(registro);
   };
 
   const handleDelete = async (id: string) => {
@@ -293,6 +297,22 @@ export default function RegistrosScreen() {
       >
         <Text style={styles.fabText}>+</Text>
       </Pressable>
+      <QuickEditModal
+        registro={editingRegistro}
+        onClose={() => setEditingRegistro(null)}
+        onSave={async (data) => {
+          if (!editingRegistro) return;
+          await updateRegistro(editingRegistro.id, data);
+          setEditingRegistro(null);
+          showToast('Jornada actualizada');
+        }}
+        onFullEdit={() => {
+          if (!editingRegistro) return;
+          const id = editingRegistro.id;
+          setEditingRegistro(null);
+          router.push({ pathname: '/registro-detalle', params: { id, editMode: '1' } });
+        }}
+      />
       <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
   );

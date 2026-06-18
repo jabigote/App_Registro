@@ -124,6 +124,15 @@ export default function RegistroMensualScreen() {
   const totalMinutes = totalMinutesFor(registrosDelMes);
   const balanceMinutes = totalMinutes - monthlyTargetHours * 60;
   const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+  const prevMonthIdx = month === 0 ? 11 : month - 1;
+  const prevYear     = month === 0 ? year - 1 : year;
+  const prevMonthRegistros = registros.filter((r) => {
+    const d = getRegistroDate(r);
+    return d.getFullYear() === prevYear && d.getMonth() === prevMonthIdx;
+  });
+  const prevMonthMinutes = totalMinutesFor(prevMonthRegistros);
+  const compareMinutes   = totalMinutes - prevMonthMinutes;
   const isLocked = lockedMonths.includes(monthKey);
   const totalDietas   = registrosDelMes.filter((r) => r.dieta && r.dieta !== 'ninguna').length;
   const totalPernoctas = registrosDelMes.filter((r) => r.pernocta).length;
@@ -265,6 +274,18 @@ export default function RegistroMensualScreen() {
             </Text>
           </Pressable>
         </View>
+
+        {/* Comparativa con mes anterior */}
+        {prevMonthMinutes > 0 && (
+          <View style={styles.compareCard}>
+            <Text style={styles.compareLabel}>
+              vs. {MESES[prevMonthIdx]} {prevYear}
+            </Text>
+            <Text style={[styles.compareValue, compareMinutes < 0 && styles.compareNeg]}>
+              {compareMinutes >= 0 ? '+' : '−'}{fmtMins(Math.abs(compareMinutes))}
+            </Text>
+          </View>
+        )}
 
         {/* Calendario del mes */}
         <View style={styles.analyticCard}>
@@ -577,6 +598,15 @@ function makeStyles(C: ThemeColors) {
     lockButtonActive: { backgroundColor: Colors.brand },
     lockButtonText: { color: Colors.brand, fontSize: 12, fontWeight: '800' },
     lockButtonTextActive: { color: '#ffffff' },
+
+    compareCard: {
+      backgroundColor: C.card, borderRadius: 16, padding: 14,
+      borderWidth: 1, borderColor: C.border,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    compareLabel: { fontSize: 13, color: C.textMuted, fontWeight: '600' },
+    compareValue: { fontSize: 18, fontWeight: '800', color: '#16a34a' },
+    compareNeg:   { color: '#dc2626' },
 
     emptyState: {
       backgroundColor: C.card, borderRadius: 22, padding: 28,
