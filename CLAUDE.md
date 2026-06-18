@@ -27,32 +27,34 @@ No existen scripts `build` ni `dev`. Hay scripts `lint`, `typecheck` y `test`. N
 |---|---|---|
 | `_layout.tsx` | raíz | AuthGuard + proveedores (GestureHandlerRootView incluido) |
 | `login.tsx` | `/login` | Login (nombre + email, local) |
-| `(tabs)/index.tsx` | `/` | Home: fichaje rápido 3 estados (idle/active/complete) + stats mes + CTAs |
+| `(tabs)/index.tsx` | `/` | Home: fichaje rápido 3 estados + reloj + botón "+" en header para nueva jornada |
 | `nuevo.tsx` | `/nuevo` | Formulario nueva jornada; detecta tramo tarde si inicioPreset ≥ 13:00 |
-| `(tabs)/registros.tsx` | `/registros` | Lista agrupada por mes; swipe derecha=editar, izquierda=borrar |
+| `(tabs)/registros.tsx` | `/registros` | Lista agrupada por mes; swipe derecha=editar, izquierda=borrar; FAB "+" para nueva jornada |
 | `registro-detalle.tsx` | `/registro-detalle` | Detalle + edición |
 | `(tabs)/registro-mensual.tsx` | `/registro-mensual` | Resumen mensual + exportar Excel |
+| `(tabs)/ausencias.tsx` | `/ausencias` | Registro de ausencias (TAB — calendario multi-selección) |
 | `(tabs)/ajustes.tsx` | `/ajustes` | Usuario, estadísticas, logout |
-| `ausencias.tsx` | `/ausencias` | Registro de ausencias (modal) |
 
 ## Diseño de la home (`(tabs)/index.tsx`)
-- **Sin ScrollView** — layout fijo flex: header + fichajeZone(flex:1) + statsBar + ctaRow
-- **Estado idle**: anillo decorativo + "Sin fichar" + botón verde Entrada
-- **Estado active**: badge verde "En curso" + tiempo transcurrido (~60px) + botón rojo Salida
-- **Estado complete**: badge ámbar + rango horario + botón "Completar jornada →"
-- Stats: 3 columnas (este mes / extras / Mensual→) en card horizontal
-- CTAs: "Nueva jornada" (brand, flex 2) + "Ausencias" (outline, flex 1)
-- Importa `expo-image Image` para el `brandMark` en el header
+- **Sin ScrollView** — layout fijo flex: header + infoRow + sep + fichajeZone(flex:1)
+- **Header**: BrandLogo (flex:1) + botón "+" redondo → `/nuevo`
+- **infoRow**: saludo+fecha (izquierda) · reloj digital `HH:MM` (derecha, brand color)
+- **Estado idle**: anillo circular + texto "Sin jornada activa" + botón verde "Registrar entrada"
+- **Estado active**: badge verde "En curso · HH:MM" + tiempo transcurrido (72px) + botón rojo "Registrar salida" + link "Cancelar entrada"
+- **Estado complete**: badge ámbar + rango "HH:MM → HH:MM" (36px) + botón rojo "Completar jornada →" + link "Descartar fichaje"
+- Sin CTAs de ausencias ni statsBar (ambas eliminadas de home)
 
 ## Swipe en Registros (`(tabs)/registros.tsx`)
 - `friction={1.5}`, `leftThreshold={30}`, `rightThreshold={30}`
-- Acciones con `borderRadius: 18` y `minWidth: 88` para zona táctil suficiente
-- `GestureHandlerRootView` ya está en `_layout.tsx` raíz
+- `isSwipingRef` (useRef<boolean>) previene que el Pressable dispare onPress tras un swipe
+- `onSwipeableWillOpen` → `isSwipingRef.current = true`; reset con `setTimeout` 600ms y `onSwipeableClose`
+- FAB rojo (+) posicionado absolute bottom-right; paddingBottom lista = 88
 
-## Tabs (`(tabs)/_layout.tsx`)
+## Tabs (`(tabs)/_layout.tsx`) — 5 pestañas
 - Inicio: `home-outline` / `home`
 - Registros: `document-text-outline` / `document-text`
 - Mensual: `stats-chart-outline` / `stats-chart`
+- Ausencias: `calendar-outline` / `calendar`
 - Ajustes: `settings-outline` / `settings`
 
 ## Contextos y claves AsyncStorage

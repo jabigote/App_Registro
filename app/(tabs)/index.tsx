@@ -9,7 +9,6 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useRegistro } from '@/contexts/registro-context';
 import { type ThemeColors, useTheme } from '@/hooks/use-theme';
-import { buildMonthlyBreakdown, filterRegistrosByMonth } from '@/src/services/monthly/analytics';
 import { dateToDateStr } from '@/utils/date';
 import { roundDateToNearest30 } from '@/utils/time';
 
@@ -51,7 +50,7 @@ type FichajeState = 'idle' | 'active' | 'complete';
 export default function HomeScreen() {
   const router = useRouter();
   const { usuario } = useAuth();
-  const { registros, loading, quickEntry, saveQuickEntry } = useRegistro();
+  const { quickEntry, saveQuickEntry } = useRegistro();
   const { toast, showToast, dismissToast } = useToast();
   const [quickSaving, setQuickSaving] = useState(false);
   const [clockStr, setClockStr] = useState(() => {
@@ -76,21 +75,6 @@ export default function HomeScreen() {
     const id = setInterval(update, 30000);
     return () => clearInterval(id);
   }, []);
-
-  // ── Stats (reservado para futura pantalla de análisis) ──────────────────────
-  const registrosMes = useMemo(() => {
-    const n = new Date();
-    return filterRegistrosByMonth(registros, n.getFullYear(), n.getMonth());
-  }, [registros]);
-  const monthlyBreakdown = useMemo(() => buildMonthlyBreakdown(registrosMes), [registrosMes]);
-  const fmtMinutes = (min: number) => {
-    if (min === 0) return '—';
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return m > 0 ? `${h}h ${m}m` : `${h}h`;
-  };
-  void loading; void monthlyBreakdown; void fmtMinutes;
-  // ────────────────────────────────────────────────────────────────────────────
 
   const handleEntrada = async () => {
     if (quickSaving) return;
@@ -148,119 +132,124 @@ export default function HomeScreen() {
 
   const isOldEntry = quickEntry?.fecha != null && quickEntry.fecha !== dateToDateStr(new Date());
 
+  const mainBtnLabel =
+    fichajeState === 'idle' ? 'Registrar entrada' :
+    fichajeState === 'active' ? 'Registrar salida' :
+    'Completar jornada →';
+
+  const handleMainAction = () => {
+    if (fichajeState === 'idle') void handleEntrada();
+    else if (fichajeState === 'active') void handleSalida();
+    else handleCompletarJornada();
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* ── Encabezado — igual que el resto de pantallas ── */}
+      {/* Encabezado */}
       <View style={styles.header}>
-        <BrandLogo />
+        <View style={styles.headerRow}>
+          <View style={styles.headerBrand}><BrandLogo /></View>
+          <Pressable
+            style={styles.headerAction}
+            onPress={() => router.push('/nuevo')}
+            accessibilityRole="button"
+            accessibilityLabel="Nueva jornada"
+          >
+            <Text style={styles.headerActionText}>+</Text>
+          </Pressable>
+        </View>
       </View>
 
-      {/* ── Saludo / Fecha / Reloj ── */}
-      <View style={styles.infoSection}>
-        {nombre ? (
-          <Text style={styles.infoGreeting}>{getSaludo()}, {nombre}</Text>
-        ) : null}
-        <Text style={styles.infoDate}>{dateLabel}</Text>
+      {/* Saludo y fecha */}
+      <View style={styles.infoRow}>
+        <View style={styles.infoTextCol}>
+          {nombre ? <Text style={styles.infoGreeting}>{getSaludo()}, {nombre}</Text> : null}
+          <Text style={styles.infoDate}>{dateLabel}</Text>
+        </View>
         <Text style={styles.infoClock}>{clockStr}</Text>
       </View>
 
-      {/* ── Separador ── */}
       <View style={styles.sep} />
 
-      {/* ── Fichaje rápido ── */}
-      <View style={styles.fichajeSection}>
+      {/* Zona de fichaje */}
+      <View style={styles.fichajeZone}>
 
-        {fichajeState === 'idle' && (
-          <View style={styles.fichajeCard}>
-            <View style={styles.statusRow}>
-              <View style={styles.dotIdle} />
-              <Text style={styles.statusLabel}>Sin fichar</Text>
-            </View>
-            <View style={styles.cardSep} />
-            <Text style={styles.fichajeHint}>Registra tu entrada para empezar a contar el tiempo</Text>
-            <Pressable
-              style={[styles.heroBtn, styles.heroBtnEntrada, quickSaving && styles.heroBtnDisabled]}
-              onPress={handleEntrada}
-              disabled={quickSaving}
-              accessibilityRole="button"
-              accessibilityLabel="Registrar entrada"
-            >
-              <Text style={styles.heroBtnText}>Registrar entrada</Text>
-            </Pressable>
+        {/* Badge de estado */}
+        <View style={[
+          styles.badge,
+          fichajeState === 'active' ? styles.badgeActive :
+          fichajeState === 'complete' ? styles.badgePending :
+          styles.badgeIdle,
+        ]}>
+          <View style={[
+            styles.badgeDot,
+            fichajeState === 'active' ? styles.dotActive :
+            fichajeState === 'complete' ? styles.dotPending :
+            styles.dotIdle,
+          ]} />
+          <Text style={[
+            styles.badgeText,
+            fichajeState === 'active' ? styles.badgeTextActive :
+            fichajeState === 'complete' ? styles.badgeTextPending :
+            styles.badgeTextIdle,
+          ]}>
+            {fichajeState === 'idle' ? 'Sin fichar' :
+             fichajeState === 'active' ? 'En curso' :
+             'Pendiente de completar'}
+          </Text>
+          {fichajeState === 'active' && quickEntry?.inicio
+            ? <Text style={styles.badgeSince}> · {quickEntry.inicio}</Text>
+            : null}
+        </View>
+
+        {isOldEntry && (
+          <Text style={styles.oldWarn}>Fichaje del {quickEntry!.fecha}</Text>
+        )}
+
+        {/* Pantalla principal de tiempo */}
+        {fichajeState === 'active' ? (
+          <Text style={styles.bigTimeActive}>{elapsed || '—'}</Text>
+        ) : fichajeState === 'complete' ? (
+          <Text style={styles.bigTimeComplete}>
+            {quickEntry!.inicio} → {quickEntry!.fin}
+          </Text>
+        ) : (
+          <View style={styles.idleRing}>
+            <Text style={styles.idleRingText}>
+              Sin jornada activa{'\n'}Pulsa para fichar
+            </Text>
           </View>
         )}
 
-        {fichajeState === 'active' && (
-          <View style={styles.fichajeCard}>
-            <View style={styles.statusRow}>
-              <View style={styles.dotActive} />
-              <Text style={[styles.statusLabel, styles.statusActive]}>Jornada en curso</Text>
-              <Text style={styles.statusSince}> · {quickEntry!.inicio}</Text>
-            </View>
-            {isOldEntry && <Text style={styles.warnText}>Fichaje del {quickEntry!.fecha}</Text>}
-            <View style={styles.cardSep} />
-            <Text style={styles.elapsedTime}>{elapsed || '—'}</Text>
-            <View style={styles.cardSep} />
-            <Pressable
-              style={[styles.heroBtn, styles.heroBtnSalida, quickSaving && styles.heroBtnDisabled]}
-              onPress={handleSalida}
-              disabled={quickSaving}
-              accessibilityRole="button"
-              accessibilityLabel="Registrar salida"
-            >
-              <Text style={styles.heroBtnText}>Registrar salida</Text>
-            </Pressable>
-            <Pressable style={styles.cancelLink} onPress={handleCancelarEntrada} disabled={quickSaving}>
-              <Text style={styles.cancelLinkText}>Cancelar entrada</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {fichajeState === 'complete' && (
-          <View style={styles.fichajeCard}>
-            <View style={styles.statusRow}>
-              <View style={styles.dotPending} />
-              <Text style={[styles.statusLabel, styles.statusPending]}>Pendiente de completar</Text>
-            </View>
-            {isOldEntry && <Text style={styles.warnText}>Fichaje del {quickEntry!.fecha}</Text>}
-            <View style={styles.cardSep} />
-            <Text style={styles.completeRange}>{quickEntry!.inicio} → {quickEntry!.fin}</Text>
-            <View style={styles.cardSep} />
-            <Pressable
-              style={[styles.heroBtn, styles.heroBtnCompletar]}
-              onPress={handleCompletarJornada}
-              accessibilityRole="button"
-              accessibilityLabel="Completar jornada"
-            >
-              <Text style={styles.heroBtnText}>Completar jornada →</Text>
-            </Pressable>
-            <Pressable style={styles.cancelLink} onPress={handleCancelarEntrada} disabled={quickSaving}>
-              <Text style={styles.cancelLinkText}>Descartar fichaje</Text>
-            </Pressable>
-          </View>
-        )}
-
-      </View>
-
-      {/* ── CTAs secundarias ── */}
-      <View style={styles.ctaRow}>
+        {/* Botón principal */}
         <Pressable
-          style={styles.btnNuevo}
-          onPress={() => router.push('/nuevo')}
+          style={[
+            styles.mainBtn,
+            fichajeState === 'idle' ? styles.mainBtnGreen : styles.mainBtnRed,
+            quickSaving ? styles.mainBtnDisabled : null,
+          ]}
+          onPress={handleMainAction}
+          disabled={quickSaving}
           accessibilityRole="button"
-          accessibilityLabel="Crear nueva jornada"
+          accessibilityLabel={mainBtnLabel}
         >
-          <Text style={styles.btnNuevoText}>+ Nueva jornada</Text>
+          <Text style={styles.mainBtnText}>{mainBtnLabel}</Text>
         </Pressable>
-        <Pressable
-          style={styles.btnAusencias}
-          onPress={() => router.push('/ausencias')}
-          accessibilityRole="button"
-          accessibilityLabel="Registrar ausencia"
-        >
-          <Text style={styles.btnAusenciasText}>Ausencias</Text>
-        </Pressable>
+
+        {/* Enlace secundario */}
+        {fichajeState !== 'idle' && (
+          <Pressable
+            style={styles.secondaryLink}
+            onPress={handleCancelarEntrada}
+            disabled={quickSaving}
+          >
+            <Text style={styles.secondaryLinkText}>
+              {fichajeState === 'active' ? 'Cancelar entrada' : 'Descartar fichaje'}
+            </Text>
+          </Pressable>
+        )}
+
       </View>
 
       <Toast toast={toast} onDismiss={dismissToast} />
@@ -272,209 +261,103 @@ function makeStyles(C: ThemeColors) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: C.background },
 
-    // ── Encabezado (igual que el resto de pantallas) ──
+    // Encabezado
     header: {
-      paddingHorizontal: 20,
-      paddingTop: 10,
-      paddingBottom: 14,
+      paddingHorizontal: 20, paddingTop: 10, paddingBottom: 14,
       backgroundColor: C.background,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: C.border,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
+    },
+    headerRow: { flexDirection: 'row', alignItems: 'center' },
+    headerBrand: { flex: 1 },
+    headerAction: {
+      width: 44, height: 44, borderRadius: 22,
+      backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
+      justifyContent: 'center', alignItems: 'center', marginLeft: 8,
+    },
+    headerActionText: {
+      fontSize: 26, fontWeight: '300', color: C.text, lineHeight: 32,
     },
 
-    // ── Saludo / Fecha / Reloj ──
-    infoSection: {
-      alignItems: 'center',
-      paddingTop: 18,
+    // Info
+    infoRow: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingHorizontal: 24, paddingVertical: 14,
+    },
+    infoTextCol: { gap: 3 },
+    infoGreeting: { fontSize: 17, fontWeight: '700', color: C.text },
+    infoDate: { fontSize: 13, fontWeight: '500', color: C.textMuted, textTransform: 'capitalize' },
+    infoClock: { fontSize: 34, fontWeight: '800', color: Colors.brand, letterSpacing: 0.5 },
+
+    sep: { height: StyleSheet.hairlineWidth, backgroundColor: C.border },
+
+    // Zona fichaje
+    fichajeZone: {
+      flex: 1, paddingHorizontal: 24,
+      justifyContent: 'center', alignItems: 'center',
       paddingBottom: 20,
-      paddingHorizontal: 24,
-      gap: 4,
-    },
-    infoGreeting: {
-      fontSize: 20,
-      fontWeight: '800',
-      color: C.text,
-    },
-    infoDate: {
-      fontSize: 15,
-      fontWeight: '500',
-      color: C.textMuted,
-      textTransform: 'capitalize',
-    },
-    infoClock: {
-      fontSize: 40,
-      fontWeight: '800',
-      color: Colors.brand,
-      letterSpacing: 2,
-      marginTop: 6,
-      lineHeight: 46,
-    },
-    sep: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: C.border,
     },
 
-    // ── Fichaje ──
-    fichajeSection: {
-      flex: 1,
-      paddingHorizontal: 20,
-      paddingTop: 18,
-      paddingBottom: 10,
-      justifyContent: 'center',
+    // Badge
+    badge: {
+      flexDirection: 'row', alignItems: 'center', gap: 7,
+      borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+      marginBottom: 32,
     },
-    fichajeCard: {
-      backgroundColor: C.card,
-      borderRadius: 24,
-      borderWidth: 1,
-      borderColor: C.border,
-      overflow: 'hidden',
-    },
-    cardSep: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: C.border,
+    badgeIdle:    { backgroundColor: C.subtleBg },
+    badgeActive:  { backgroundColor: 'rgba(34,197,94,0.1)' },
+    badgePending: { backgroundColor: 'rgba(245,158,11,0.1)' },
+    badgeDot: { width: 8, height: 8, borderRadius: 4 },
+    dotIdle:    { backgroundColor: C.textFaint },
+    dotActive:  { backgroundColor: '#22c55e' },
+    dotPending: { backgroundColor: '#f59e0b' },
+    badgeText: { fontSize: 14, fontWeight: '700' },
+    badgeTextIdle:    { color: C.textSecondary },
+    badgeTextActive:  { color: '#22c55e' },
+    badgeTextPending: { color: '#f59e0b' },
+    badgeSince: { fontSize: 13, fontWeight: '500', color: C.textMuted },
+
+    oldWarn: {
+      fontSize: 12, color: '#b45309', fontWeight: '600',
+      textAlign: 'center', marginTop: -24, marginBottom: 16,
     },
 
-    // Status row
-    statusRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      paddingHorizontal: 20,
-      paddingVertical: 14,
+    // Pantallas de tiempo
+    bigTimeActive: {
+      fontSize: 72, fontWeight: '900', color: C.text,
+      letterSpacing: -2, lineHeight: 80, textAlign: 'center',
+      marginBottom: 8,
     },
-    dotIdle: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
-      borderWidth: 2,
-      borderColor: C.border,
+    bigTimeComplete: {
+      fontSize: 36, fontWeight: '800', color: C.text,
+      letterSpacing: -0.5, textAlign: 'center',
+      marginBottom: 8,
     },
-    dotActive: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
-      backgroundColor: '#22c55e',
+    idleRing: {
+      width: 164, height: 164, borderRadius: 82,
+      borderWidth: 1.5, borderColor: C.border,
+      justifyContent: 'center', alignItems: 'center',
+      marginBottom: 20,
     },
-    dotPending: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
-      backgroundColor: '#f59e0b',
-    },
-    statusLabel: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: C.textSecondary,
-    },
-    statusActive: { color: '#22c55e' },
-    statusPending: { color: '#f59e0b' },
-    statusSince: {
-      fontSize: 13,
-      color: C.textMuted,
-      fontWeight: '500',
+    idleRingText: {
+      fontSize: 14, color: C.textFaint, textAlign: 'center',
+      lineHeight: 21, fontWeight: '500', paddingHorizontal: 20,
     },
 
-    fichajeHint: {
-      fontSize: 14,
-      color: C.textMuted,
-      textAlign: 'center',
-      lineHeight: 20,
-      paddingHorizontal: 20,
-      paddingTop: 12,
-      paddingBottom: 16,
+    // Botón principal
+    mainBtn: {
+      width: '100%', borderRadius: 18, paddingVertical: 18,
+      alignItems: 'center', marginTop: 20,
     },
+    mainBtnGreen:    { backgroundColor: '#22c55e' },
+    mainBtnRed:      { backgroundColor: Colors.brand },
+    mainBtnDisabled: { opacity: 0.55 },
+    mainBtnText: { color: '#ffffff', fontSize: 18, fontWeight: '800' },
 
-    // Datos centrales
-    elapsedTime: {
-      fontSize: 52,
-      fontWeight: '900',
-      color: C.text,
-      letterSpacing: -1,
-      lineHeight: 60,
-      textAlign: 'center',
-      paddingVertical: 16,
+    // Enlace secundario
+    secondaryLink: {
+      paddingVertical: 14, paddingHorizontal: 20,
+      alignItems: 'center', marginTop: 4,
     },
-    completeRange: {
-      fontSize: 36,
-      fontWeight: '800',
-      color: C.text,
-      letterSpacing: -0.5,
-      textAlign: 'center',
-      paddingVertical: 16,
-    },
-
-    warnText: {
-      fontSize: 12,
-      color: '#b45309',
-      fontWeight: '600',
-      textAlign: 'center',
-      paddingHorizontal: 20,
-      paddingBottom: 4,
-    },
-
-    // Botones hero
-    heroBtn: {
-      marginHorizontal: 20,
-      marginBottom: 4,
-      marginTop: 4,
-      borderRadius: 16,
-      paddingVertical: 17,
-      alignItems: 'center',
-    },
-    heroBtnEntrada: { backgroundColor: '#22c55e' },
-    heroBtnSalida:  { backgroundColor: Colors.brand },
-    heroBtnCompletar: { backgroundColor: Colors.brand },
-    heroBtnDisabled: { opacity: 0.55 },
-    heroBtnText: { color: '#ffffff', fontSize: 17, fontWeight: '800' },
-
-    cancelLink: {
-      paddingVertical: 12,
-      paddingHorizontal: 20,
-      alignItems: 'center',
-    },
-    cancelLinkText: { fontSize: 13, color: C.textMuted, fontWeight: '600' },
-
-    // ── Stats (reservado para análisis futuro) ──
-    statsBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: C.card,
-      borderRadius: 20,
-      marginHorizontal: 20,
-      marginBottom: 10,
-      paddingVertical: 14,
-      borderWidth: 1,
-      borderColor: C.border,
-    },
-    statItem: { flex: 1, alignItems: 'center', gap: 2 },
-    statValue: { fontSize: 18, fontWeight: '800', color: C.text },
-    statLabel: { fontSize: 11, fontWeight: '600', color: C.textMuted },
-    statSep: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: C.border },
-
-    // ── CTAs ──
-    ctaRow: {
-      flexDirection: 'row',
-      paddingHorizontal: 20,
-      paddingBottom: 12,
-      gap: 10,
-    },
-    btnNuevo: {
-      flex: 2,
-      backgroundColor: Colors.brand,
-      borderRadius: 18,
-      paddingVertical: 17,
-      alignItems: 'center',
-    },
-    btnNuevoText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
-    btnAusencias: {
-      flex: 1,
-      borderRadius: 18,
-      paddingVertical: 17,
-      alignItems: 'center',
-      backgroundColor: C.card,
-      borderWidth: 1,
-      borderColor: C.border,
-    },
-    btnAusenciasText: { color: C.textSecondary, fontSize: 14, fontWeight: '700' },
+    secondaryLinkText: { fontSize: 14, color: C.textMuted, fontWeight: '600' },
   });
 }

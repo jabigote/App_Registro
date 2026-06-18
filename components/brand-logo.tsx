@@ -9,7 +9,7 @@ import { type ThemeColors, useTheme } from '@/hooks/use-theme';
 
 const brandMark = require('../assets/images/salvagnini-mark.png');
 const brandLogo = require('../assets/images/salvagnini-logo.webp');
-const TAB_PATHS = new Set(['/', '/registros', '/registro-mensual', '/ajustes']);
+const TAB_PATHS = new Set(['/', '/registros', '/registro-mensual', '/ajustes', '/ausencias']);
 
 const ROUTE_LABELS: Record<string, string> = {
   index: 'Inicio',

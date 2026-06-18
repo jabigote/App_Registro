@@ -48,6 +48,7 @@ export default function RegistrosScreen() {
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
+  const isSwipingRef = useRef(false);
 
   const filteredRegistros = useMemo(() => {
     let base = tipoFiltro
@@ -139,14 +140,20 @@ export default function RegistrosScreen() {
         friction={1.5}
         leftThreshold={30}
         rightThreshold={30}
+        onSwipeableWillOpen={() => { isSwipingRef.current = true; }}
         onSwipeableOpen={(direction) => {
           if (direction === 'left') handleEdit(registro.id);
           else void handleDelete(registro.id);
+          setTimeout(() => { isSwipingRef.current = false; }, 600);
         }}
+        onSwipeableClose={() => { isSwipingRef.current = false; }}
       >
         <Pressable
           style={styles.recordCard}
-          onPress={() => router.push({ pathname: '/registro-detalle', params: { id: registro.id } })}
+          onPress={() => {
+            if (isSwipingRef.current) return;
+            router.push({ pathname: '/registro-detalle', params: { id: registro.id } });
+          }}
         >
           <View style={styles.recordHeader}>
             <View style={styles.recordTitleCol}>
@@ -278,6 +285,14 @@ export default function RegistrosScreen() {
           SectionSeparatorComponent={() => <View style={styles.sectionSep} />}
         />
       )}
+      <Pressable
+        style={styles.fab}
+        onPress={() => router.push('/nuevo')}
+        accessibilityRole="button"
+        accessibilityLabel="Nueva jornada"
+      >
+        <Text style={styles.fabText}>+</Text>
+      </Pressable>
       <Toast toast={toast} onDismiss={dismissToast} />
     </SafeAreaView>
   );
@@ -293,7 +308,7 @@ function makeStyles(C: ThemeColors) {
     },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     page: {
-      padding: 20, paddingTop: 0, paddingBottom: 40,
+      padding: 20, paddingTop: 0, paddingBottom: 88,
       width: '100%', maxWidth: 900, alignSelf: 'center',
     },
     listHeader: { gap: 10, marginBottom: 4, marginTop: 16 },
@@ -366,5 +381,15 @@ function makeStyles(C: ThemeColors) {
     },
     tagText: { fontSize: 11, fontWeight: '700', color: Colors.brand },
     recordDescription: { fontSize: 13, color: C.textMuted, lineHeight: 19 },
+
+    fab: {
+      position: 'absolute', bottom: 24, right: 20,
+      width: 56, height: 56, borderRadius: 28,
+      backgroundColor: Colors.brand,
+      justifyContent: 'center', alignItems: 'center',
+      shadowColor: Colors.brand, shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.35, shadowRadius: 10, elevation: 8,
+    },
+    fabText: { color: '#fff', fontSize: 30, fontWeight: '300', lineHeight: 36, marginTop: -2 },
   });
 }

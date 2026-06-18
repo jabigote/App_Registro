@@ -18,8 +18,6 @@ import { findDateConflicts, isDateLocked } from '@/src/services/registro/conflic
 import { todayDateStr } from '@/utils/date';
 import { parseHoursInput } from '@/utils/time';
 
-// ── Calendario ────────────────────────────────────────────────────────────────
-
 const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -34,18 +32,15 @@ function toDayStr(year: number, month: number, day: number): string {
   return `${year}-${pad2(month + 1)}-${pad2(day)}`;
 }
 
-/** Genera los días del mes con prefijo null para completar la primera semana (lunes primero). */
 function buildCalendarCells(year: number, month: number): (number | null)[] {
-  const firstDow = new Date(year, month, 1).getDay(); // 0=Dom
-  const startOffset = (firstDow + 6) % 7;            // 0=Lun … 6=Dom
+  const firstDow = new Date(year, month, 1).getDay();
+  const startOffset = (firstDow + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells: (number | null)[] = Array(startOffset).fill(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
 }
-
-// ── Pantalla ──────────────────────────────────────────────────────────────────
 
 export default function AusenciasScreen() {
   const router = useRouter();
@@ -64,24 +59,16 @@ export default function AusenciasScreen() {
   const today = todayDateStr();
   const now = new Date();
 
-  // Mes visible en el calendario
   const [viewYear, setViewYear]   = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
-
-  // Selección de días (iso strings "YYYY-MM-DD")
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
-
-  // Tipo de ausencia
   const [tipoAusencia, setTipoAusencia] = useState('');
-
-  // Opciones (solo Permiso / Enfermedad)
   const [soloHoras, setSoloHoras]     = useState(false);
   const [horasInput, setHorasInput]   = useState('');
   const [descripcion, setDescripcion] = useState('');
 
   const showOpts = needsAusenciaDesc(tipoAusencia);
 
-  // Navegación de mes
   const prevMonth = () => {
     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
     else setViewMonth(m => m - 1);
@@ -124,7 +111,7 @@ export default function AusenciasScreen() {
       ));
       const n = dates.length;
       showToast(n > 1 ? `${n} ausencias registradas` : 'Ausencia registrada');
-      navTimerRef.current = setTimeout(() => router.replace('/registros'), 1300);
+      navTimerRef.current = setTimeout(() => router.navigate('/registros'), 1300);
     } catch {
       showToast('Error al guardar. Inténtalo de nuevo.', 'error');
     } finally {
@@ -139,7 +126,7 @@ export default function AusenciasScreen() {
       void persistAbsences(selectedDateList);
       return;
     }
-    const conflictDays = [...new Set(conflicts.map((registro) => registro.fecha ?? registro.createdAt.slice(0, 10)))];
+    const conflictDays = [...new Set(conflicts.map((r) => r.fecha ?? r.createdAt.slice(0, 10)))];
     Alert.alert(
       'Hay días con registros',
       `${conflictDays.length} día${conflictDays.length === 1 ? '' : 's'} seleccionado${conflictDays.length === 1 ? '' : 's'} ya contiene registros. ¿Guardar las ausencias igualmente?`,
@@ -150,7 +137,6 @@ export default function AusenciasScreen() {
     );
   };
 
-  // Construir grid del mes visible
   const cells = useMemo(() => buildCalendarCells(viewYear, viewMonth), [viewYear, viewMonth]);
   const rows: (number | null)[][] = [];
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
@@ -169,7 +155,7 @@ export default function AusenciasScreen() {
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="automatic"
       >
-        {/* ── Tipo de ausencia ── */}
+        {/* Tipo de ausencia */}
         <View style={styles.card}>
           <Text style={styles.cardLabel}>TIPO DE AUSENCIA</Text>
           <View style={styles.cardSep} />
@@ -197,9 +183,8 @@ export default function AusenciasScreen() {
           </View>
         </View>
 
-        {/* ── Calendario ── */}
+        {/* Calendario */}
         <View style={styles.card}>
-          {/* Navegación de mes */}
           <View style={styles.monthNav}>
             <Pressable onPress={prevMonth} style={styles.monthNavBtn} accessibilityRole="button" accessibilityLabel="Mes anterior">
               <Text style={styles.monthNavArrow}>‹</Text>
@@ -209,10 +194,7 @@ export default function AusenciasScreen() {
               <Text style={styles.monthNavArrow}>›</Text>
             </Pressable>
           </View>
-
           <View style={styles.cardSep} />
-
-          {/* Cabecera de días de la semana */}
           <View style={styles.calendarRow}>
             {DAY_LABELS.map((d) => (
               <View key={d} style={styles.calCell}>
@@ -220,8 +202,6 @@ export default function AusenciasScreen() {
               </View>
             ))}
           </View>
-
-          {/* Grid de días */}
           {rows.map((row, ri) => (
             <View key={ri} style={styles.calendarRow}>
               {row.map((day, ci) => {
@@ -252,8 +232,6 @@ export default function AusenciasScreen() {
               })}
             </View>
           ))}
-
-          {/* Contador de días seleccionados */}
           {selectedCount > 0 && (
             <>
               <View style={[styles.cardSep, { marginTop: 8 }]} />
@@ -269,13 +247,11 @@ export default function AusenciasScreen() {
           )}
         </View>
 
-        {/* ── Opciones (solo Permiso / Enfermedad) ── */}
+        {/* Opciones (Permiso / Enfermedad) */}
         {showOpts && (
           <View style={styles.card}>
             <Text style={styles.cardLabel}>OPCIONES</Text>
             <View style={styles.cardSep} />
-
-            {/* Toggle horas parciales */}
             <View style={styles.switchRow}>
               <View style={styles.switchTextCol}>
                 <Text style={styles.switchLabel}>Solo por horas</Text>
@@ -288,7 +264,6 @@ export default function AusenciasScreen() {
                 thumbColor={soloHoras ? Colors.brand : '#f4f3f4'}
               />
             </View>
-
             {soloHoras && (
               <View style={styles.horasRow}>
                 <TextInput
@@ -302,10 +277,7 @@ export default function AusenciasScreen() {
                 {horasError && <Text style={styles.fieldError}>Formato no válido</Text>}
               </View>
             )}
-
             <View style={styles.cardSep} />
-
-            {/* Descripción */}
             <View style={styles.descSection}>
               <Text style={styles.optionLabel}>
                 {tipoAusencia === 'Enfermedad' ? 'Descripción / diagnóstico' : 'Motivo del permiso'}
@@ -335,7 +307,6 @@ export default function AusenciasScreen() {
           </View>
         ) : null}
 
-        {/* ── Botón guardar ── */}
         <Pressable
           style={[styles.btnPrimary, !canSave && styles.btnDisabled]}
           onPress={handleSave}
@@ -372,13 +343,9 @@ function makeStyles(C: ThemeColors) {
       width: '100%', maxWidth: 720, alignSelf: 'center',
     },
 
-    // ── Card ──
     card: {
-      backgroundColor: C.card,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: C.border,
-      overflow: 'hidden',
+      backgroundColor: C.card, borderRadius: 20,
+      borderWidth: 1, borderColor: C.border, overflow: 'hidden',
     },
     cardLabel: {
       fontSize: 11, fontWeight: '800', color: Colors.brand,
@@ -387,7 +354,6 @@ function makeStyles(C: ThemeColors) {
     },
     cardSep: { height: StyleSheet.hairlineWidth, backgroundColor: C.border },
 
-    // ── Tipo chips ──
     chipArea: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 14 },
     chip: {
       minHeight: 44, paddingVertical: 9, paddingHorizontal: 18, borderRadius: 20,
@@ -398,7 +364,6 @@ function makeStyles(C: ThemeColors) {
     chipText: { fontSize: 14, fontWeight: '600', color: C.textSecondary },
     chipTextActive: { color: '#fff', fontWeight: '700' },
 
-    // ── Calendario ──
     monthNav: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingHorizontal: 8, paddingVertical: 12,
@@ -431,7 +396,6 @@ function makeStyles(C: ThemeColors) {
     clearBtn: { minHeight: 44, paddingVertical: 4, paddingHorizontal: 10, justifyContent: 'center' },
     clearBtnText: { fontSize: 13, color: C.textMuted, fontWeight: '600' },
 
-    // ── Opciones ──
     switchRow: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingHorizontal: 16, paddingVertical: 14,
@@ -452,13 +416,13 @@ function makeStyles(C: ThemeColors) {
     inputError: { borderColor: '#f59e0b' },
     textArea: { minHeight: 90, textAlignVertical: 'top' },
     fieldError: { fontSize: 12, color: '#f59e0b', fontWeight: '600' },
+
     warningCard: {
       backgroundColor: '#fef3c7', borderRadius: 14, padding: 14,
       borderWidth: 1, borderColor: '#f59e0b',
     },
     warningText: { color: '#92400e', fontSize: 13, lineHeight: 19, fontWeight: '600' },
 
-    // ── Botón ──
     btnPrimary: {
       backgroundColor: Colors.brand, borderRadius: 16,
       paddingVertical: 17, alignItems: 'center', marginTop: 4,

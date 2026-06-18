@@ -27,6 +27,13 @@ export default function TabLayout() {
         }} />
         <Label>Mensual</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="ausencias">
+        <Icon src={{
+          default: <VectorIcon family={Ionicons} name="calendar-outline" />,
+          selected: <VectorIcon family={Ionicons} name="calendar" />,
+        }} />
+        <Label>Ausencias</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="ajustes">
         <Icon src={{
           default: <VectorIcon family={Ionicons} name="settings-outline" />,
