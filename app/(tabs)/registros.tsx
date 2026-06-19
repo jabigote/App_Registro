@@ -2,6 +2,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, SafeAreaView, SectionList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { QuickEditModal } from '@/components/QuickEditModal';
 
@@ -49,6 +50,7 @@ export default function RegistrosScreen() {
   const { toast, showToast, dismissToast } = useToast();
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
+  const insets = useSafeAreaInsets();
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map());
   const isSwipingRef = useRef(false);
   const [editingRegistro, setEditingRegistro] = useState<(typeof registros)[0] | null>(null);
@@ -290,7 +292,7 @@ export default function RegistrosScreen() {
         />
       )}
       <Pressable
-        style={styles.fab}
+        style={[styles.fab, { bottom: insets.bottom + 16 }]}
         onPress={() => router.push('/nuevo')}
         accessibilityRole="button"
         accessibilityLabel="Nueva jornada"

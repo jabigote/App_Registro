@@ -6,6 +6,10 @@ La versión debe actualizarse conjuntamente en `app.json`, `package.json` y
 `constants/release-history.ts`. La prueba `version-history.test.ts` comprueba que las tres fuentes
 permanezcan sincronizadas.
 
+## 1.7.1 — 19 de junio de 2026
+
+- Corregida la posición del botón "+" flotante en la pantalla de Registros: ya no se solapa con la barra de pestañas inferior en iOS.
+
 ## 1.5.0 — 15 de junio de 2026
 
 - Navegación principal mediante pestañas nativas para Inicio, Registros, Mensual y Ajustes.

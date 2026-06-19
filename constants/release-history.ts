@@ -7,6 +7,14 @@ export type ReleaseEntry = {
 
 export const RELEASE_HISTORY: ReleaseEntry[] = [
   {
+    version: '1.7.1',
+    date: '19 de junio de 2026',
+    title: 'Corrección del botón flotante en Registros',
+    highlights: [
+      'El botón "+" de la pantalla Registros ya no se solapa con la barra de pestañas inferior en iOS: ahora usa el inset seguro del sistema para posicionarse siempre por encima de la toolbar.',
+    ],
+  },
+  {
     version: '1.7.0',
     date: '18 de junio de 2026',
     title: 'Modal de edición rápida, alertas inteligentes y analítica avanzada',
