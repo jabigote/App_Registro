@@ -1,8 +1,10 @@
+import * as Haptics from 'expo-haptics';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, SafeAreaView, SectionList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { parseTime } from '@/utils/time';
 
 import { QuickEditModal } from '@/components/QuickEditModal';
 
@@ -92,6 +94,7 @@ export default function RegistrosScreen() {
       return;
     }
     swipeableRefs.current.get(id)?.close();
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEditingRegistro(registro);
   };
 
@@ -101,6 +104,7 @@ export default function RegistrosScreen() {
       showToast('Este mes está cerrado. Ábrelo desde Registro mensual.', 'error');
       return;
     }
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await deleteRegistro(id);
       showToast('Jornada eliminada', 'success', deleted ? {
@@ -193,9 +197,10 @@ export default function RegistrosScreen() {
     );
   };
 
-  const renderSectionHeader = ({ section: { title } }: { section: Section }) => (
+  const renderSectionHeader = ({ section: { title, data } }: { section: Section }) => (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionHeaderText}>{title}</Text>
+      <Text style={styles.sectionHeaderCount}>{data.length} jornada{data.length !== 1 ? 's' : ''}</Text>
     </View>
   );
 
@@ -257,6 +262,13 @@ export default function RegistrosScreen() {
               ? `No hay jornadas que coincidan con "${query}".`
               : `No hay jornadas del tipo "${tipoFiltro}".`}
           </Text>
+          <Pressable
+            style={styles.clearFilterBtn}
+            onPress={() => { setQuery(''); setTipoFiltro(null); }}
+            accessibilityRole="button"
+          >
+            <Text style={styles.clearFilterBtnText}>Limpiar filtro</Text>
+          </Pressable>
         </>
       ) : (
         <>
@@ -304,6 +316,27 @@ export default function RegistrosScreen() {
         onClose={() => setEditingRegistro(null)}
         onSave={async (data) => {
           if (!editingRegistro) return;
+          if (data.inicio && data.fin) {
+            const date = getRegistroDateStr(editingRegistro);
+            const newS = parseTime(data.inicio);
+            const newE = parseTime(data.fin);
+            if (newS !== null && newE !== null) {
+              const newEnd = newE <= newS ? newE + 24 * 60 : newE;
+              const hasOverlap = registros.some((r) => {
+                if (r.id === editingRegistro.id || !r.inicio || !r.fin) return false;
+                if (getRegistroDateStr(r) !== date) return false;
+                const s = parseTime(r.inicio);
+                const e = parseTime(r.fin);
+                if (s === null || e === null) return false;
+                const end = e <= s ? e + 24 * 60 : e;
+                return newS < end && s < newEnd;
+              });
+              if (hasOverlap) {
+                showToast('El horario se solapa con otra jornada del mismo día.', 'error');
+                return;
+              }
+            }
+          }
           await updateRegistro(editingRegistro.id, data);
           setEditingRegistro(null);
           showToast('Jornada actualizada');
@@ -346,11 +379,13 @@ function makeStyles(C: ThemeColors) {
       paddingVertical: 10, paddingHorizontal: 0,
       borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
       marginTop: 16,
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     },
     sectionHeaderText: {
       fontSize: 11, fontWeight: '800', color: Colors.brand,
       textTransform: 'uppercase', letterSpacing: 1.2,
     },
+    sectionHeaderCount: { fontSize: 11, fontWeight: '600', color: C.textFaint },
     sectionSep: { height: 8 },
 
     emptyState: {
@@ -360,6 +395,11 @@ function makeStyles(C: ThemeColors) {
     emptyIcon: { fontSize: 32 },
     emptyTitle: { fontSize: 17, fontWeight: '700', color: C.text },
     emptyText: { color: C.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 },
+    clearFilterBtn: {
+      marginTop: 4, paddingVertical: 10, paddingHorizontal: 20,
+      borderRadius: 12, borderWidth: 1, borderColor: Colors.brand,
+    },
+    clearFilterBtnText: { fontSize: 14, fontWeight: '700', color: Colors.brand },
 
     filterScroll: { marginVertical: 2 },
     filterRow: { flexDirection: 'row', gap: 7, paddingVertical: 2 },

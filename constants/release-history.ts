@@ -7,6 +7,17 @@ export type ReleaseEntry = {
 
 export const RELEASE_HISTORY: ReleaseEntry[] = [
   {
+    version: '1.8.0',
+    date: '19 de junio de 2026',
+    title: 'Mejoras de usabilidad en la pantalla de Registros',
+    highlights: [
+      'El encabezado de cada sección mensual muestra el número de jornadas registradas ese mes.',
+      'El estado vacío con filtro activo incluye un botón "Limpiar filtro" para restablecer búsqueda y tipo en un solo toque.',
+      'Feedback háptico al confirmar el swipe de edición (suave) y de borrado (medio) para reforzar la acción realizada.',
+      'La edición rápida de horario ahora valida solapamientos con otras jornadas del mismo día antes de guardar.',
+    ],
+  },
+  {
     version: '1.7.1',
     date: '19 de junio de 2026',
     title: 'Corrección del botón flotante en Registros',

@@ -6,6 +6,13 @@ La versión debe actualizarse conjuntamente en `app.json`, `package.json` y
 `constants/release-history.ts`. La prueba `version-history.test.ts` comprueba que las tres fuentes
 permanezcan sincronizadas.
 
+## 1.8.0 — 19 de junio de 2026
+
+- El encabezado de cada sección mensual en Registros muestra el número de jornadas del mes.
+- Estado vacío con filtro activo incluye un botón "Limpiar filtro" para restablecer búsqueda y tipo de un solo toque.
+- Feedback háptico al confirmar swipe de edición (suave) y de borrado (medio).
+- La edición rápida de horario valida solapamientos con otras jornadas del mismo día antes de guardar.
+
 ## 1.7.1 — 19 de junio de 2026
 
 - Corregida la posición del botón "+" flotante en la pantalla de Registros: ya no se solapa con la barra de pestañas inferior en iOS.
