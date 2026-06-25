@@ -7,6 +7,22 @@ export type ReleaseEntry = {
 
 export const RELEASE_HISTORY: ReleaseEntry[] = [
   {
+    version: '1.9.0',
+    date: '25 de junio de 2026',
+    title: 'Firma digital en el reporte mensual y vista previa Excel',
+    highlights: [
+      'El reporte mensual incluye un pad táctil para dibujar y capturar la firma del trabajador antes de exportar.',
+      'Modal de vista previa con tabla de datos columna a columna (día, oficina, exterior, totales, dietas, pernoctas) antes de generar el Excel.',
+      'La firma se guarda automáticamente por mes en el dispositivo y se recupera en aperturas posteriores.',
+      'Si no hay firma, la app pregunta si exportar sin ella antes de continuar.',
+      'Respuesta háptica al confirmar la firma y opción de reemplazarla con confirmación.',
+      'Al firmar, la celda L53 del Excel registra la fecha de firma en formato dd/mm/aaaa.',
+      'Filtrado de puntos trazados (MIN_DIST=2.5 px) para reducir el tamaño del SVG generado ~3×.',
+      'Corrección del botón flotante "+" en Registros: ahora se posiciona siempre por encima de la barra de pestañas, incluidos dispositivos sin botón de inicio.',
+      'Pestaña Ausencias corregida en la versión web de la app.',
+    ],
+  },
+  {
     version: '1.8.0',
     date: '19 de junio de 2026',
     title: 'Mejoras de usabilidad en la pantalla de Registros',

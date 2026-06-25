@@ -304,7 +304,7 @@ export default function RegistrosScreen() {
         />
       )}
       <Pressable
-        style={[styles.fab, { bottom: insets.bottom + 16 }]}
+        style={[styles.fab, { bottom: insets.bottom + 49 + 16 }]}
         onPress={() => router.push('/nuevo')}
         accessibilityRole="button"
         accessibilityLabel="Nueva jornada"
