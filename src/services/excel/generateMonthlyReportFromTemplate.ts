@@ -65,6 +65,8 @@ export interface MonthlyReportInput {
   month: number;
   employeeName: string;
   records: MonthlyDayRecord[];
+  /** SVG XML string de la firma del trabajador (opcional). Se embebe en el recuadro de firma del xlsx. */
+  signatureSvg?: string;
 }
 
 // ─────────────────────────────────────────────
@@ -507,6 +509,89 @@ function writeTotalsRow(xml: string, colStyles: Record<string, string>): string 
 }
 
 // ─────────────────────────────────────────────
+// Firma SVG: embedding en el xlsx
+// ─────────────────────────────────────────────
+
+/**
+ * Añade la imagen SVG de la firma del trabajador al ZIP.
+ *
+ * Posición objetivo: zona "Firma Trabajador" del template (cols J–P, filas Excel 47–52).
+ * En coordenadas de drawing XML (0-indexed): cols 9–15, rows 46–51.
+ *
+ * No toca el area de "Responsable" (izquierda).
+ */
+async function embedSignatureInZip(zip: JSZip, svgContent: string): Promise<void> {
+  // 1. Añadir el SVG como media
+  zip.file('xl/media/firma_trabajador.svg', svgContent);
+
+  // 2. Crear drawing1.xml.rels apuntando al SVG
+  const relsXml =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/firma_trabajador.svg"/>` +
+    `</Relationships>`;
+  zip.file('xl/drawings/_rels/drawing1.xml.rels', relsXml);
+
+  // 3. Registrar el tipo SVG en [Content_Types].xml si no existe
+  const ctFile = zip.file('[Content_Types].xml');
+  if (ctFile) {
+    let ctXml = await ctFile.async('string');
+    if (!ctXml.includes('Extension="svg"')) {
+      ctXml = ctXml.replace(
+        '<Types ',
+        '<Types ',
+      );
+      // Insertar Default para svg antes del primer Override
+      ctXml = ctXml.replace(
+        /<Override /,
+        `<Default Extension="svg" ContentType="image/svg+xml"/><Override `,
+      );
+      zip.file('[Content_Types].xml', ctXml);
+    }
+  }
+
+  // 4. Añadir xmlns:r al wsDr y el elemento <pic> en drawing1.xml
+  const drawFile = zip.file('xl/drawings/drawing1.xml');
+  if (!drawFile) return;
+  let drawXml = await drawFile.async('string');
+
+  // Añadir xmlns:r si no está ya declarado
+  if (!drawXml.includes('xmlns:r=')) {
+    drawXml = drawXml.replace(
+      '<xdr:wsDr ',
+      '<xdr:wsDr xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ',
+    );
+  }
+
+  // Construir el twoCellAnchor de la imagen de firma
+  // Zona "Firma Trabajador": cols J(9)–P(15), rows drawing 46–51 (Excel 47–52)
+  const picAnchor =
+    `<xdr:twoCellAnchor editAs="oneCell">` +
+      `<xdr:from><xdr:col>9</xdr:col><xdr:colOff>295275</xdr:colOff><xdr:row>46</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>` +
+      `<xdr:to><xdr:col>15</xdr:col><xdr:colOff>942975</xdr:colOff><xdr:row>51</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>` +
+      `<xdr:pic>` +
+        `<xdr:nvPicPr>` +
+          `<xdr:cNvPr id="1111" name="Firma_Trabajador" descr="Firma del trabajador"/>` +
+          `<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr>` +
+        `</xdr:nvPicPr>` +
+        `<xdr:blipFill>` +
+          `<a:blip r:embed="rId1"/>` +
+          `<a:stretch><a:fillRect/></a:stretch>` +
+        `</xdr:blipFill>` +
+        `<xdr:spPr>` +
+          `<a:xfrm><a:off x="0" y="0"/><a:ext cx="1905000" cy="857250"/></a:xfrm>` +
+          `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>` +
+        `</xdr:spPr>` +
+      `</xdr:pic>` +
+      `<xdr:clientData/>` +
+    `</xdr:twoCellAnchor>`;
+
+  // Insertar antes del cierre del wsDr
+  drawXml = drawXml.replace('</xdr:wsDr>', picAnchor + '</xdr:wsDr>');
+  zip.file('xl/drawings/drawing1.xml', drawXml);
+}
+
+// ─────────────────────────────────────────────
 // Localización de la hoja dentro del ZIP
 // ─────────────────────────────────────────────
 
@@ -545,7 +630,7 @@ async function findSheetPath(zip: JSZip): Promise<string> {
 export async function generateMonthlyReportFromTemplate(
   input: MonthlyReportInput,
 ): Promise<string> {
-  const { year, month, employeeName, records } = input;
+  const { year, month, employeeName, records, signatureSvg } = input;
   if (!Number.isInteger(month) || month < 1 || month > 12) {
     throw new Error('El mes del reporte debe estar entre 1 y 12.');
   }
@@ -616,6 +701,11 @@ export async function generateMonthlyReportFromTemplate(
 
   // 8. El ZIP final sale de JSZip, conservando todos los archivos originales
   zip.file(sheetPath, sheetXml);
+
+  // 8b. Embeber firma SVG si se proporcionó
+  if (signatureSvg) {
+    await embedSignatureInZip(zip, signatureSvg);
+  }
 
   // STORE (sin compresión): comprimir con DEFLATE bloquea el único hilo JS de Hermes
   // durante decenas de segundos y la app parece congelada. Descomprimir (inflate) los

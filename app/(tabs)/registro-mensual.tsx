@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Alert, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
+import { type SignaturePadRef, SignaturePad } from '@/components/signature-pad';
 import { Colors } from '@/constants/theme';
 import { useAppSettings } from '@/contexts/app-settings-context';
 import { useAuth } from '@/contexts/auth-context';
@@ -61,8 +62,12 @@ export default function RegistroMensualScreen() {
   const { monthlyTargetHours, lockedMonths, toggleMonthLock } = useAppSettings();
   const C = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
+  const { width: screenWidth } = useWindowDimensions();
   const [exporting, setExporting] = useState(false);
   const [pendingShareUri, setPendingShareUri] = useState<string | null>(null);
+
+  const sigPadRef = useRef<SignaturePadRef>(null);
+  const [signatureSvg, setSignatureSvg] = useState<string | null>(null);
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -142,6 +147,11 @@ export default function RegistroMensualScreen() {
   // Genera el archivo con el modal aún abierto (botón en "Generando…") y lo cierra al
   // terminar. El share sheet NO se presenta aquí: si se lanza mientras el pageSheet
   // todavía se está cerrando, iOS no puede presentarlo y la promesa queda colgada.
+  const handleCapturarFirma = () => {
+    const xml = sigPadRef.current?.getSvgXml() ?? null;
+    setSignatureSvg(xml);
+  };
+
   const handleExportar = async () => {
     if (exporting) return;
     setExporting(true);
@@ -151,6 +161,7 @@ export default function RegistroMensualScreen() {
         month:        month + 1,
         employeeName: usuario?.nombre ?? 'Empleado',
         records:      buildRecords(),
+        signatureSvg: signatureSvg ?? undefined,
       });
       setPendingShareUri(uri);
       setShowPreview(false); // el share sheet se lanza en onDismiss del modal
@@ -179,6 +190,7 @@ export default function RegistroMensualScreen() {
       Alert.alert('Sin datos', 'No hay jornadas registradas este mes.');
       return;
     }
+    setSignatureSvg(null);
     setShowPreview(true);
   };
 
@@ -531,6 +543,51 @@ export default function RegistroMensualScreen() {
             </Text>
           </View>
 
+          {/* ── Sección de firma ── */}
+          <View style={styles.sigSection}>
+            <View style={styles.sigHeader}>
+              <Text style={styles.sigTitle}>Firma del trabajador</Text>
+              {signatureSvg && (
+                <Text style={styles.sigConfirmed}>✓ Capturada</Text>
+              )}
+            </View>
+
+            {/* Canvas de firma */}
+            <View style={styles.sigCanvasWrap}>
+              <SignaturePad
+                ref={sigPadRef}
+                width={screenWidth - 48}
+                height={140}
+              />
+            </View>
+
+            {/* Botones de firma */}
+            <View style={styles.sigActions}>
+              <Pressable
+                style={styles.sigClearBtn}
+                onPress={() => {
+                  sigPadRef.current?.clear();
+                  setSignatureSvg(null);
+                }}
+                hitSlop={8}
+              >
+                <Text style={styles.sigClearTxt}>Limpiar</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.sigCapBtn,
+                  signatureSvg && styles.sigCapBtnConfirmed,
+                ]}
+                onPress={handleCapturarFirma}
+                hitSlop={8}
+              >
+                <Text style={[styles.sigCapTxt, signatureSvg && styles.sigCapTxtConfirmed]}>
+                  {signatureSvg ? 'Actualizar firma' : 'Confirmar firma'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
           {/* Acciones */}
           <View style={styles.pvFooter}>
             <Pressable style={styles.pvCancelBtn} onPress={() => setShowPreview(false)}>
@@ -734,5 +791,36 @@ function makeStyles(C: ThemeColors) {
     },
     pvCancelTxt:  { fontSize: 16, fontWeight: '600', color: C.text },
     pvExportBtn:  { flex: 2, borderRadius: 14, paddingVertical: 14, alignItems: 'center', backgroundColor: Colors.brand },
+
+    // ── Firma ──
+    sigSection: {
+      borderTopWidth: 1, borderTopColor: C.border,
+      paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10,
+      gap: 10, backgroundColor: C.background,
+    },
+    sigHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    sigTitle: { fontSize: 13, fontWeight: '700', color: C.text },
+    sigConfirmed: { fontSize: 12, fontWeight: '700', color: '#16a34a' },
+    sigCanvasWrap: {
+      borderWidth: 1.5, borderColor: C.border, borderRadius: 12,
+      overflow: 'hidden',
+    },
+    sigActions: {
+      flexDirection: 'row', gap: 10, justifyContent: 'flex-end',
+    },
+    sigClearBtn: {
+      paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10,
+      backgroundColor: C.separator, borderWidth: 1, borderColor: C.border,
+    },
+    sigClearTxt: { fontSize: 13, fontWeight: '600', color: C.textSecondary },
+    sigCapBtn: {
+      paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10,
+      backgroundColor: `${Colors.brand}15`, borderWidth: 1, borderColor: Colors.brand,
+    },
+    sigCapBtnConfirmed: { backgroundColor: '#16a34a', borderColor: '#16a34a' },
+    sigCapTxt: { fontSize: 13, fontWeight: '700', color: Colors.brand },
+    sigCapTxtConfirmed: { color: '#ffffff' },
   });
 }
