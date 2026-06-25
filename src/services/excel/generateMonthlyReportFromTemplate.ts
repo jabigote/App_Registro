@@ -699,6 +699,15 @@ export async function generateMonthlyReportFromTemplate(
   // 7. Fórmulas de totales en fila 45 (preserva las existentes en plantilla; añade las que falten)
   sheetXml = writeTotalsRow(sheetXml, colStyles);
 
+  // 7b. Fecha de firma en celda L53 (zona "Firma Trabajador")
+  if (signatureSvg) {
+    const today = new Date();
+    const dd   = String(today.getDate()).padStart(2, '0');
+    const mm   = String(today.getMonth() + 1).padStart(2, '0');
+    const yyyy = today.getFullYear();
+    sheetXml = writeHeaderCell(sheetXml, 'L53', `${dd}/${mm}/${yyyy}`, colStyles);
+  }
+
   // 8. El ZIP final sale de JSZip, conservando todos los archivos originales
   zip.file(sheetPath, sheetXml);
 

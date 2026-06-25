@@ -16,11 +16,17 @@ interface Props {
   strokeWidth?: number;
 }
 
+/** Distancia mínima (px) entre puntos consecutivos. Reduce el tamaño del SVG ~3x sin perder calidad visual. */
+const MIN_DIST = 2.5;
+/** Límite de caracteres del path acumulado (~3 000 puntos = 45 KB). Evita SVGs enormes. */
+const MAX_CHARS = 45_000;
+
 export const SignaturePad = forwardRef<SignaturePadRef, Props>(
   ({ width, height = 150, strokeColor = '#1a1a1a', strokeWidth = 2.5 }, ref) => {
     const [completedPaths, setCompletedPaths] = useState<string[]>([]);
     const [currentD, setCurrentD] = useState<string>('');
     const currentDRef = useRef<string>('');
+    const lastPtRef = useRef<{ x: number; y: number } | null>(null);
 
     const gesture = Gesture.Pan()
       .runOnJS(true)
@@ -28,11 +34,23 @@ export const SignaturePad = forwardRef<SignaturePadRef, Props>(
       .onBegin((e) => {
         const d = `M ${e.x.toFixed(1)} ${e.y.toFixed(1)}`;
         currentDRef.current = d;
+        lastPtRef.current = { x: e.x, y: e.y };
         setCurrentD(d);
       })
       .onUpdate((e) => {
+        // Ignorar punto si está demasiado cerca del anterior (reduce densidad de puntos)
+        const last = lastPtRef.current;
+        if (last) {
+          const dx = e.x - last.x;
+          const dy = e.y - last.y;
+          if (dx * dx + dy * dy < MIN_DIST * MIN_DIST) return;
+        }
+        // No añadir más puntos si el path acumulado ya es muy largo
+        if (currentDRef.current.length >= MAX_CHARS) return;
+
         const d = `${currentDRef.current} L ${e.x.toFixed(1)} ${e.y.toFixed(1)}`;
         currentDRef.current = d;
+        lastPtRef.current = { x: e.x, y: e.y };
         setCurrentD(d);
       })
       .onFinalize(() => {
@@ -40,6 +58,7 @@ export const SignaturePad = forwardRef<SignaturePadRef, Props>(
           const finished = currentDRef.current;
           setCompletedPaths((prev) => [...prev, finished]);
           currentDRef.current = '';
+          lastPtRef.current = null;
           setCurrentD('');
         }
       });
@@ -65,6 +84,7 @@ export const SignaturePad = forwardRef<SignaturePadRef, Props>(
         setCompletedPaths([]);
         setCurrentD('');
         currentDRef.current = '';
+        lastPtRef.current = null;
       },
       isEmpty: () => completedPaths.length === 0 && currentDRef.current.length === 0,
     }));

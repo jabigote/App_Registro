@@ -33,7 +33,14 @@ export default function WebTabLayout() {
         name="registro-mensual"
         options={{
           title: 'Mensual',
-          tabBarIcon: ({ color, size }) => <Ionicons name="calendar" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ausencias"
+        options={{
+          title: 'Ausencias',
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
